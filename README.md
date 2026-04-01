@@ -47,9 +47,9 @@ Commit the updated `data/scimago.json` (and optionally the raw CSV). SCImago aut
 ### GitHub Actions
 
 - **[`.github/workflows/ci.yml`](.github/workflows/ci.yml)** — on every PR and push to `main`, validates files and JSON (no deploy).
-- **[`.github/workflows/pages.yml`](.github/workflows/pages.yml)** — on push to `main` only, **one job** builds `_site` and deploys to **GitHub Pages** (avoids duplicate `github-pages` artifact errors from multi-job workflows).
+- **[`.github/workflows/pages.yml`](.github/workflows/pages.yml)** — on push to `main`, **build** job runs `actions/configure-pages` then uploads the `_site` artifact; **deploy** job runs `actions/deploy-pages` only (GitHub’s recommended split).
 
-Enable Pages once: **Settings → Pages → Build and deployment → Source: GitHub Actions**. If GitHub added an extra “static site” workflow when enabling Pages, **delete** that workflow so only `pages.yml` uploads the site artifact.
+Enable Pages once: **Settings → Pages → Build and deployment → Source must be “GitHub Actions”** (not “Deploy from a branch”). If deploy still returns **404**, toggle Source away and back to **GitHub Actions**, or pick the suggested workflow once so GitHub registers the Pages app for the repo. Remove any duplicate “static HTML” workflow GitHub created so only `pages.yml` deploys.
 
 The live URL is usually `https://nishantkapps.github.io/pranker/` (see **Settings → Pages** after a green deploy).
 

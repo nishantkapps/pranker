@@ -1,5 +1,5 @@
-# Single job = exactly one github-pages artifact per run (fixes duplicate-artifact deploy errors)
-# Repo: Settings → Pages → Source: GitHub Actions
+# Matches GitHub docs: configure-pages → upload artifact → deploy (separate job).
+# https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site#publishing-with-a-custom-github-actions-workflow
 name: Deploy GitHub Pages
 
 on:
@@ -14,15 +14,12 @@ permissions:
 
 concurrency:
   group: pages-deploy
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Build and deploy
+  build:
+    name: Build site
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,11 +39,22 @@ jobs:
           cp index.html _site/
           cp -r css js data _site/
 
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v4
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
 
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
