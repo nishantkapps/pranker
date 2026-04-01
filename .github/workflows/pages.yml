@@ -1,11 +1,9 @@
-# Build + deploy static site to GitHub Pages.
-# Repo: Settings → Pages → Build and deployment → Source: GitHub Actions
-name: Pages
+# Single job = exactly one github-pages artifact per run (fixes duplicate-artifact deploy errors)
+# Repo: Settings → Pages → Source: GitHub Actions
+name: Deploy GitHub Pages
 
 on:
   push:
-    branches: [main]
-  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -15,41 +13,28 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages-${{ github.ref }}
-  cancel-in-progress: false
+  group: pages-deploy
+  cancel-in-progress: true
 
 jobs:
-  validate:
-    name: Validate site & data
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Required files exist
-        run: |
-          test -f index.html
-          test -f css/style.css
-          test -f js/app.js
-          test -f data/scimago.json
-          test -f data/core.json
-
-      - name: Parse ranking JSON
-        run: |
-          python3 -c "import json; json.load(open('data/scimago.json')); json.load(open('data/core.json')); print('JSON OK')"
-
-      - name: Python build scripts (syntax)
-        run: python3 -m py_compile scripts/build_scimago.py scripts/build_core.py
-
   deploy:
-    name: Deploy to GitHub Pages
-    needs: validate
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    name: Build and deploy
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Validate (same checks as CI)
+        run: |
+          test -f index.html
+          test -f css/style.css
+          test -f js/app.js
+          test -f data/scimago.json
+          test -f data/core.json
+          python3 -c "import json; json.load(open('data/scimago.json')); json.load(open('data/core.json')); print('JSON OK')"
+          python3 -m py_compile scripts/build_scimago.py scripts/build_core.py
 
       - name: Prepare static site
         run: |

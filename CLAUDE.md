@@ -33,7 +33,8 @@ npx eslint js/app.js
 - `data/scimago.json` — journal ISSN→quartile map (generated)
 - `data/core.json` — conference→rank map (generated)
 - `scripts/` — Python data build scripts (run locally or when refreshing data)
-- `.github/workflows/pages.yml` — PR validation + deploy to GitHub Pages on push to `main`
+- `.github/workflows/ci.yml` — validate on PR/push
+- `.github/workflows/pages.yml` — single-job deploy to GitHub Pages on push to `main`
 
 ## Conventions
 
