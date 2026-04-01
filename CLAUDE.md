@@ -32,8 +32,8 @@ npx eslint js/app.js
 - `js/app.js` — all application logic
 - `data/scimago.json` — journal ISSN→quartile map (generated)
 - `data/core.json` — conference→rank map (generated)
-- `scripts/` — Python data build scripts (run in CI or locally)
-- `.github/workflows/` — CI, deploy, and data refresh pipelines
+- `scripts/` — Python data build scripts (run locally or when refreshing data)
+- `.github/workflows/pages.yml` — PR validation + deploy to GitHub Pages on push to `main`
 
 ## Conventions
 

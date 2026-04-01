@@ -42,7 +42,16 @@ python scripts/build_scimago.py   # uses local CSV if present; otherwise tries d
 python scripts/build_core.py
 ```
 
-Commit the updated `data/scimago.json` (and optionally the raw CSV). A weekly GitHub Actions job can refresh **CORE** data; SCImago automated download often fails with 403 — use a manual CSV when needed.
+Commit the updated `data/scimago.json` (and optionally the raw CSV). SCImago automated download often fails with 403 — use a manual CSV when needed.
+
+### GitHub Actions
+
+Workflow [`.github/workflows/pages.yml`](.github/workflows/pages.yml):
+
+- **Pull requests** — validates that required files exist, `data/scimago.json` / `data/core.json` parse as JSON, and Python scripts in `scripts/` compile.
+- **Push to `main`** — runs the same checks, then builds a `_site` folder (`index.html`, `css/`, `js/`, `data/`) and deploys it to **GitHub Pages**.
+
+Enable Pages once: **Settings → Pages → Build and deployment → Source: GitHub Actions**. The live URL is usually `https://nishantkapps.github.io/pranker/` (confirm under **Settings → Pages** after the first successful run).
 
 ## Tech Stack
 
@@ -50,7 +59,7 @@ Commit the updated `data/scimago.json` (and optionally the raw CSV). A weekly Gi
 - **DOI Resolution**: CrossRef REST API (called from browser)
 - **Ranking Data**: Pre-processed JSON files from SCImago and CORE
 - **Hosting**: GitHub Pages
-- **CI/CD**: GitHub Actions
+- **CI/CD**: GitHub Actions (see above)
 
 ## License
 
