@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>P Ranker — Paper Ranking Lookup</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>P Ranker</h1>
+    <p class="subtitle">Look up journal &amp; conference rankings for scientific papers</p>
+  </header>
+
+  <main>
+    <section class="input-section">
+      <div class="input-tabs">
+        <button class="tab-btn active" data-tab="text">Paste DOIs</button>
+        <button class="tab-btn" data-tab="csv">Upload CSV</button>
+      </div>
+
+      <div class="tab-content active" id="tab-text">
+        <textarea
+          id="doi-input"
+          placeholder="Enter DOIs, one per line. Accepts full URLs or plain DOIs.&#10;&#10;Examples:&#10;https://doi.org/10.1145/3292500.3330919&#10;10.1038/s41586-020-2649-2&#10;doi.org/10.1109/TSE.2020.3000662"
+          rows="8"
+        ></textarea>
+      </div>
+
+      <div class="tab-content" id="tab-csv">
+        <div class="file-upload" id="file-drop-zone">
+          <input type="file" id="csv-file" accept=".csv,.txt" hidden>
+          <p>Drag &amp; drop a CSV file here, or <button type="button" id="browse-btn">browse</button></p>
+          <p class="hint">CSV should have a column named <code>doi</code></p>
+          <p class="file-name" id="file-name"></p>
+        </div>
+      </div>
+
+      <div class="input-actions">
+        <button id="rank-btn" class="primary-btn" disabled>Rank Papers</button>
+        <button id="clear-btn" class="secondary-btn">Clear</button>
+      </div>
+    </section>
+
+    <section class="progress-section" id="progress-section" hidden>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <p class="progress-text" id="progress-text">Resolving DOIs...</p>
+    </section>
+
+    <section class="results-section" id="results-section" hidden>
+      <div class="results-header">
+        <h2>Results <span class="result-count" id="result-count"></span></h2>
+        <button id="export-btn" class="secondary-btn">Export CSV</button>
+      </div>
+      <div class="table-wrapper">
+        <table id="results-table">
+          <thead>
+            <tr>
+              <th class="sortable" data-col="idx">#</th>
+              <th class="sortable" data-col="title">Paper Title</th>
+              <th class="sortable" data-col="source">Source</th>
+              <th class="sortable" data-col="type">Type</th>
+              <th class="sortable" data-col="ranking">Ranking</th>
+              <th>DOI</th>
+            </tr>
+          </thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      Data from <a href="https://www.scimagojr.com/" target="_blank" rel="noopener">SCImago</a> (journals)
+      and <a href="https://portal.core.edu.au/conf-ranks/" target="_blank" rel="noopener">CORE Rankings</a> (conferences).
+      Paper metadata from <a href="https://www.crossref.org/" target="_blank" rel="noopener">CrossRef</a>.
+    </p>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

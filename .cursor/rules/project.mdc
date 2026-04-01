@@ -1,0 +1,13 @@
+---
+description: P Ranker project conventions and architecture rules
+alwaysApply: true
+---
+
+# P Ranker Project Rules
+
+- This is a fully client-side app (no backend server). All API calls happen in the browser.
+- Frontend is vanilla HTML/CSS/JS — no frameworks, no build step.
+- `data/scimago.json` and `data/core.json` are generated files. Edit the Python scripts in `scripts/` to change how data is processed, not the JSON directly.
+- CrossRef API calls must include `mailto` parameter for polite access.
+- Use `Promise.allSettled()` for batch DOI processing — never fail the whole batch for one DOI.
+- Normalize venue names to lowercase with punctuation stripped for matching.
