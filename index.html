@@ -3,13 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Reduce stale HTML in browsers; GitHub Pages CDN may still cache briefly. -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
   <title>P Ranker — Paper Ranking Lookup</title>
-  <link rel="stylesheet" href="css/style.css">
+  <!-- Bump ?v= when css/js change so clients fetch fresh assets (Pages CDN caches aggressively). -->
+  <link rel="stylesheet" href="css/style.css?v=3">
 </head>
 <body>
   <header>
     <h1>P Ranker</h1>
-    <p class="subtitle">Look up journal &amp; conference rankings for scientific papers. The rankings are as of 2024, and may have changed recently, please verify</p>
+    <p class="subtitle">Look up journal &amp; conference rankings for scientific papers</p>
   </header>
 
   <p class="disclaimer" role="note">
@@ -84,6 +88,6 @@
     </p>
   </footer>
 
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=3"></script>
 </body>
 </html>
