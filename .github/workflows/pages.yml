@@ -1,5 +1,5 @@
-# Matches GitHub docs: configure-pages → upload artifact → deploy (separate job).
-# https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site#publishing-with-a-custom-github-actions-workflow
+# Matches GitHub starter: https://github.com/actions/starter-workflows/blob/main/pages/static.yml
+# One job → one artifact. Uses configure-pages@v5 + deploy-pages@v5.
 name: Deploy GitHub Pages
 
 on:
@@ -13,17 +13,19 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages-deploy
+  group: pages
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build site
+  deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate (same checks as CI)
+      - name: Validate site & data
         run: |
           test -f index.html
           test -f css/style.css
@@ -40,21 +42,13 @@ jobs:
           cp -r css js data _site/
 
       - name: Configure GitHub Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v5
 
-      - name: Upload Pages artifact
+      - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
 
-  deploy:
-    name: Deploy to Pages
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

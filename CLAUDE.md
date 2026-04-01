@@ -34,7 +34,7 @@ npx eslint js/app.js
 - `data/core.json` — conference→rank map (generated)
 - `scripts/` — Python data build scripts (run locally or when refreshing data)
 - `.github/workflows/ci.yml` — validate on PR/push
-- `.github/workflows/pages.yml` — single-job deploy to GitHub Pages on push to `main`
+- `.github/workflows/pages.yml` — deploy to GitHub Pages (`configure-pages@v5`, `deploy-pages@v5`); repo Settings → Pages → Source: **GitHub Actions** must be set once
 
 ## Conventions
 

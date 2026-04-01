@@ -47,11 +47,20 @@ Commit the updated `data/scimago.json` (and optionally the raw CSV). SCImago aut
 ### GitHub Actions
 
 - **[`.github/workflows/ci.yml`](.github/workflows/ci.yml)** — on every PR and push to `main`, validates files and JSON (no deploy).
-- **[`.github/workflows/pages.yml`](.github/workflows/pages.yml)** — on push to `main`, **build** job runs `actions/configure-pages` then uploads the `_site` artifact; **deploy** job runs `actions/deploy-pages` only (GitHub’s recommended split).
+- **[`.github/workflows/pages.yml`](.github/workflows/pages.yml)** — on push to `main`, one job (same pattern as [GitHub’s static Pages starter](https://github.com/actions/starter-workflows/blob/main/pages/static.yml)): validate → build `_site` → `configure-pages@v5` → upload artifact → `deploy-pages@v5`.
 
-Enable Pages once: **Settings → Pages → Build and deployment → Source must be “GitHub Actions”** (not “Deploy from a branch”). If deploy still returns **404**, toggle Source away and back to **GitHub Actions**, or pick the suggested workflow once so GitHub registers the Pages app for the repo. Remove any duplicate “static HTML” workflow GitHub created so only `pages.yml` deploys.
+#### Enable GitHub Pages (required once)
 
-The live URL is usually `https://nishantkapps.github.io/pranker/` (see **Settings → Pages** after a green deploy).
+`configure-pages` talks to the Pages API. If you see **“Get Pages site failed”** / **Not Found**, the repo does not have Pages registered for **GitHub Actions** yet. Do this **before** expecting a green deploy:
+
+1. Open **[Settings → Pages](https://github.com/nishantkapps/pranker/settings/pages)**.
+2. Under **Build and deployment**, set **Source** to **GitHub Actions** (not “Deploy from a branch” and not “None”).
+3. Save if prompted. You can ignore GitHub’s suggested workflow banner if this repo already has `.github/workflows/pages.yml`.
+4. Re-run the **Deploy GitHub Pages** workflow (or push to `main`).
+
+Remove any extra “Deploy static content” workflow GitHub added during setup if it duplicates deploys.
+
+The live URL is usually `https://nishantkapps.github.io/pranker/` (shown on **Settings → Pages** after success).
 
 ## Tech Stack
 
