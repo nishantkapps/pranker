@@ -31,3 +31,6 @@ node_modules/
 
 # Cursor local
 .cursor/plans/
+
+# Local ranking exports (rebuild JSON with scripts/build_scimago.py)
+data/*.csv
