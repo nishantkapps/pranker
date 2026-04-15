@@ -290,7 +290,55 @@
     return results;
   }
 
-  // ---- PDF download (Unpaywall + CrossRef; browser CORS limits many publishers) ----
+  // ---- PDF download: Unpaywall + CrossRef + OpenAlex; fetch via direct or CORS proxies ----
+
+  function pickBestPdfUrlFromCrossRefLinks(links) {
+    if (!links || !links.length) return null;
+    const candidates = [];
+    for (const l of links) {
+      const u = l.URL;
+      if (!u || typeof u !== "string") continue;
+      const ct = (l["content-type"] || "").toLowerCase();
+      const isPdfMime =
+        ct.includes("pdf") ||
+        ct.includes("x-pdf") ||
+        ct.includes("acrobat");
+      const looksPdfPath = /\.pdf(\?|#|$)/i.test(u);
+      if (!isPdfMime && !looksPdfPath) continue;
+      let score = looksPdfPath ? 2 : 1;
+      if (ct.includes("application/pdf")) score = 4;
+      else if (isPdfMime) score = 3;
+      candidates.push({ url: u, score });
+    }
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates.length ? candidates[0].url : null;
+  }
+
+  async function resolvePdfUrlFromOpenAlex(doi) {
+    try {
+      const filterUrl = `https://api.openalex.org/works?filter=${encodeURIComponent(
+        `doi:${doi}`
+      )}&per_page=1`;
+      const resp = await fetchWithTimeout(filterUrl, 20000);
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      const work = data.results && data.results[0];
+      if (!work) return null;
+      for (const loc of work.locations || []) {
+        if (loc.pdf_url) return loc.pdf_url;
+      }
+      const oa = work.open_access;
+      if (oa && oa.oa_url && /\.pdf(\?|#|$)/i.test(oa.oa_url)) {
+        return oa.oa_url;
+      }
+      if (oa && oa.oa_url && oa.is_oa) {
+        return oa.oa_url;
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
 
   function sanitizeDoiFilename(doi) {
     let s = doi.replace(/[^a-zA-Z0-9._-]+/g, "_");
@@ -338,15 +386,18 @@
       if (crResp.ok) {
         const data = await crResp.json();
         const links = data.message && data.message.link ? data.message.link : [];
-        for (const l of links) {
-          const ct = (l["content-type"] || "").toLowerCase();
-          if (ct.includes("pdf") && l.URL) {
-            return { url: l.URL };
-          }
+        const crPdf = pickBestPdfUrlFromCrossRefLinks(links);
+        if (crPdf) {
+          return { url: crPdf };
         }
       }
     } catch (_) {
       /* ignore */
+    }
+
+    const openAlexPdf = await resolvePdfUrlFromOpenAlex(doi);
+    if (openAlexPdf) {
+      return { url: openAlexPdf };
     }
 
     if (uwJson && uwJson.is_oa === false) {
@@ -355,11 +406,11 @@
     return { error: "No PDF URL found" };
   }
 
-  async function downloadPdfBlob(url) {
+  async function tryFetchPdfOnce(resourceUrl) {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 120000);
+    const timer = setTimeout(() => ctrl.abort(), 90000);
     try {
-      const resp = await fetch(url, {
+      const resp = await fetch(resourceUrl, {
         mode: "cors",
         credentials: "omit",
         redirect: "follow",
@@ -376,6 +427,24 @@
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  /** Direct fetch first; then public CORS proxies (third parties see the URL). */
+  async function downloadPdfBlob(url) {
+    const proxyUrls = [
+      url,
+      `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    ];
+    let lastErr;
+    for (const resourceUrl of proxyUrls) {
+      try {
+        return await tryFetchPdfOnce(resourceUrl);
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr;
   }
 
 

@@ -13,6 +13,8 @@ Determine the ranking of scientific paper sources at a glance. Paste DOIs or upl
 3. **View results** — a color-coded table shows each paper's title, source, and ranking.
 4. **Export** — download the results as a CSV file.
 
+**Download PDFs as ZIP** uses the same DOI list. PDF URLs are resolved from Unpaywall, CrossRef metadata links, and OpenAlex (open-access only). The app cannot scrape publisher web pages from the browser (CORS). If needed, PDF bytes are fetched directly or via public CORS proxies; many paywalled or publisher-protected PDFs will still fail and appear in the failures table.
+
 ### Ranking Sources
 
 | Source Type | Ranking System | Tiers |
