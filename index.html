@@ -8,7 +8,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <title>P Ranker — Paper Ranking Lookup</title>
   <!-- Bump ?v= when css/js change so clients fetch fresh assets (Pages CDN caches aggressively). -->
-  <link rel="stylesheet" href="css/style.css?v=3">
+  <link rel="stylesheet" href="css/style.css?v=6">
 </head>
 <body>
   <header>
@@ -23,8 +23,8 @@
   <main>
     <section class="input-section">
       <div class="input-tabs">
-        <button class="tab-btn active" data-tab="text">Paste DOIs</button>
-        <button class="tab-btn" data-tab="csv">Upload CSV</button>
+        <button type="button" class="tab-btn active" data-tab="text">Paste DOIs</button>
+        <button type="button" class="tab-btn" data-tab="csv">Upload CSV</button>
       </div>
 
       <div class="tab-content active" id="tab-text">
@@ -45,22 +45,28 @@
       </div>
 
       <div class="input-actions">
-        <button id="rank-btn" class="primary-btn" disabled>Rank Papers</button>
-        <button id="clear-btn" class="secondary-btn">Clear</button>
+        <button type="button" id="rank-btn" class="primary-btn" disabled>Rank Papers</button>
+        <button type="button" id="pdf-zip-btn" class="secondary-btn" disabled>Download PDFs as ZIP</button>
+        <button type="button" id="clear-btn" class="secondary-btn">Clear</button>
       </div>
+      <p class="hint action-hint">
+        <strong>PDF ZIP</strong> uses the same DOI list above. Open-access only (<a href="https://unpaywall.org/" target="_blank" rel="noopener">Unpaywall</a>), max 100 per archive; failures are listed below.
+      </p>
     </section>
 
     <section class="progress-section" id="progress-section" hidden>
       <div class="progress-bar">
         <div class="progress-fill" id="progress-fill"></div>
       </div>
-      <p class="progress-text" id="progress-text">Resolving DOIs...</p>
+      <p class="progress-text" id="progress-text">Working...</p>
     </section>
+
+    <p class="pdf-success-banner" id="pdf-success-banner" hidden></p>
 
     <section class="results-section" id="results-section" hidden>
       <div class="results-header">
         <h2>Results <span class="result-count" id="result-count"></span></h2>
-        <button id="export-btn" class="secondary-btn">Export CSV</button>
+        <button type="button" id="export-btn" class="secondary-btn">Export CSV</button>
       </div>
       <div class="table-wrapper">
         <table id="results-table">
@@ -78,6 +84,25 @@
         </table>
       </div>
     </section>
+
+    <section class="results-section" id="pdf-failures-section" hidden>
+      <div class="results-header">
+        <h2>PDF download issues <span class="result-count" id="pdf-fail-count-label"></span></h2>
+        <button type="button" id="pdf-fail-export-btn" class="secondary-btn">Export failures CSV</button>
+      </div>
+      <div class="table-wrapper">
+        <table id="pdf-failures-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>DOI</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody id="pdf-failures-body"></tbody>
+        </table>
+      </div>
+    </section>
   </main>
 
   <footer>
@@ -85,9 +110,11 @@
       Data from <a href="https://www.scimagojr.com/" target="_blank" rel="noopener">SCImago</a> (journals)
       and <a href="https://portal.core.edu.au/conf-ranks/" target="_blank" rel="noopener">CORE Rankings</a> (conferences).
       Paper metadata from <a href="https://www.crossref.org/" target="_blank" rel="noopener">CrossRef</a>.
+      PDF links from <a href="https://unpaywall.org/" target="_blank" rel="noopener">Unpaywall</a>.
     </p>
   </footer>
 
-  <script src="js/app.js?v=3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" crossorigin="anonymous"></script>
+  <script src="js/app.js?v=6"></script>
 </body>
 </html>

@@ -202,8 +202,21 @@ textarea:focus {
 
 .input-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
   margin-top: 1rem;
+  align-items: center;
+}
+
+.action-hint {
+  margin-top: 0.65rem;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.action-hint a {
+  color: var(--color-primary);
 }
 
 .primary-btn {
