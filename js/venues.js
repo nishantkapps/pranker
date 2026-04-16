@@ -40,25 +40,205 @@
 
   // ---- DOM references ----
 
-  const topicInput = document.getElementById("topic-input");
-  const findBtn = document.getElementById("find-btn");
-  const clearBtn = document.getElementById("venues-clear-btn");
-  const progressSection = document.getElementById("progress-section");
-  const progressFill = document.getElementById("progress-fill");
-  const progressText = document.getElementById("progress-text");
-  const venuesSection = document.getElementById("venues-section");
-  const venuesCount = document.getElementById("venues-count");
-  const venuesBody = document.getElementById("venues-body");
-  const venuesExportBtn = document.getElementById("venues-export-btn");
+  const topicInput       = document.getElementById("topic-input");
+  const findBtn          = document.getElementById("find-btn");
+  const clearBtn         = document.getElementById("venues-clear-btn");
+  const progressSection  = document.getElementById("progress-section");
+  const progressFill     = document.getElementById("progress-fill");
+  const progressText     = document.getElementById("progress-text");
+  const venuesSection    = document.getElementById("venues-section");
+  const venuesCount      = document.getElementById("venues-count");
+  const venuesBody       = document.getElementById("venues-body");
+  const venuesExportBtn  = document.getElementById("venues-export-btn");
   const deadlinesSection = document.getElementById("deadlines-section");
-  const deadlinesCount = document.getElementById("deadlines-count");
-  const deadlinesBody = document.getElementById("deadlines-body");
-  const deadlinesNote = document.getElementById("deadlines-note");
+  const deadlinesCount   = document.getElementById("deadlines-count");
+  const deadlinesBody    = document.getElementById("deadlines-body");
+  const deadlinesNote    = document.getElementById("deadlines-note");
   const deadlinesExportBtn = document.getElementById("deadlines-export-btn");
+  const searchHint       = document.getElementById("search-hint");
+
+  // AI settings DOM refs
+  const aiSettingsBtn    = document.getElementById("ai-settings-btn");
+  const aiStatusDot      = document.getElementById("ai-status-dot");
+  const aiSettingsPanel  = document.getElementById("ai-settings-panel");
+  const aiProviderSel    = document.getElementById("ai-provider");
+  const aiCustomUrlRow   = document.getElementById("ai-custom-url-row");
+  const aiModelRow       = document.getElementById("ai-model-row");
+  const aiCustomUrlInput = document.getElementById("ai-custom-url");
+  const aiModelInput     = document.getElementById("ai-model");
+  const aiKeyInput       = document.getElementById("ai-key");
+  const aiSaveBtn        = document.getElementById("ai-save-btn");
+  const aiDisableBtn     = document.getElementById("ai-disable-btn");
+
+  // ---- AI settings helpers ----
+
+  const LS_AI = "pranker_ai";
+
+  function loadAiSettings() {
+    try { return JSON.parse(localStorage.getItem(LS_AI) || "{}"); } catch { return {}; }
+  }
+  function saveAiSettings(obj) {
+    localStorage.setItem(LS_AI, JSON.stringify(obj));
+  }
+
+  function applyAiSettingsToUI(s) {
+    aiProviderSel.value = s.provider || "groq";
+    aiCustomUrlInput.value = s.customUrl || "";
+    aiModelInput.value = s.model || "";
+    aiKeyInput.value = s.key || "";
+    toggleAiProviderFields();
+  }
+
+  function toggleAiProviderFields() {
+    const p = aiProviderSel.value;
+    aiCustomUrlRow.hidden = p !== "custom";
+    aiModelRow.hidden = p !== "custom";
+  }
+
+  function isAiEnabled() {
+    const s = loadAiSettings();
+    return !!(s.enabled && s.key);
+  }
+
+  function updateAiDot() {
+    const on = isAiEnabled();
+    aiStatusDot.className = `ai-dot ${on ? "ai-dot-on" : "ai-dot-off"}`;
+    aiSettingsBtn.title = on ? "AI search is ON — click to configure" : "Enable AI-powered search";
+    searchHint.textContent = on
+      ? "AI search is ON: your query is sent to the LLM to suggest relevant venues and expand keywords, then looked up locally."
+      : "Keywords are matched against venue titles and acronyms in the bundled CORE and SCImago data. Upcoming submission deadlines are fetched live from aideadlin.es.";
+  }
+
+  function setupAiSettings() {
+    applyAiSettingsToUI(loadAiSettings());
+    updateAiDot();
+
+    aiSettingsBtn.addEventListener("click", () => {
+      aiSettingsPanel.hidden = !aiSettingsPanel.hidden;
+    });
+    aiProviderSel.addEventListener("change", toggleAiProviderFields);
+    aiSaveBtn.addEventListener("click", () => {
+      const s = {
+        enabled: true,
+        provider: aiProviderSel.value,
+        customUrl: aiCustomUrlInput.value.trim(),
+        model: aiModelInput.value.trim(),
+        key: aiKeyInput.value.trim(),
+      };
+      if (!s.key) { alert("Please enter an API key."); return; }
+      saveAiSettings(s);
+      updateAiDot();
+      aiSettingsPanel.hidden = true;
+    });
+    aiDisableBtn.addEventListener("click", () => {
+      const s = loadAiSettings();
+      s.enabled = false;
+      saveAiSettings(s);
+      updateAiDot();
+      aiSettingsPanel.hidden = true;
+    });
+  }
+
+  // ---- LLM call ----
+
+  const PROVIDER_DEFAULTS = {
+    groq:   { url: "https://api.groq.com/openai/v1/chat/completions",       model: "llama-3.3-70b-versatile" },
+    openai: { url: "https://api.openai.com/v1/chat/completions",            model: "gpt-4o-mini" },
+    gemini: { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent", model: "" },
+  };
+
+  const AI_PROMPT = (query) =>
+    `You are a computer science research expert helping a researcher find relevant academic venues.
+
+Research topic: "${query}"
+
+Respond with a single JSON object (no markdown, no explanation) with exactly these two fields:
+{
+  "acronyms": ["ICRA", "IROS", ...],
+  "keywords": ["robot", "autonomous", "manipulation", ...]
+}
+
+"acronyms": 10–25 conference or journal acronyms that are directly relevant to this topic. Include both well-known and specialised venues. Only include real academic venues.
+"keywords": 15–30 search terms, synonyms, sub-fields and related concepts to maximise recall when searching venue titles.`;
+
+  async function callLlm(query) {
+    const s = loadAiSettings();
+    if (!s.enabled || !s.key) return null;
+
+    const provider = s.provider || "groq";
+
+    if (provider === "gemini") {
+      return callGemini(query, s.key);
+    }
+    // OpenAI-compatible (groq, openai, custom)
+    const defaults = PROVIDER_DEFAULTS[provider] || {};
+    const url   = provider === "custom" ? s.customUrl : defaults.url;
+    const model = (provider === "custom" ? s.model : "") || defaults.model;
+    if (!url) throw new Error("No endpoint URL configured.");
+
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${s.key}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: AI_PROMPT(query) }],
+        temperature: 0.2,
+        max_tokens: 600,
+      }),
+    });
+    if (!resp.ok) {
+      const err = await resp.text().catch(() => resp.statusText);
+      throw new Error(`LLM API error ${resp.status}: ${err}`);
+    }
+    const data = await resp.json();
+    return parseAiResponse(data.choices?.[0]?.message?.content || "");
+  }
+
+  async function callGemini(query, key) {
+    const url = `${PROVIDER_DEFAULTS.gemini.url}?key=${encodeURIComponent(key)}`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: AI_PROMPT(query) }] }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 600 },
+      }),
+    });
+    if (!resp.ok) {
+      const err = await resp.text().catch(() => resp.statusText);
+      throw new Error(`Gemini API error ${resp.status}: ${err}`);
+    }
+    const data = await resp.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    return parseAiResponse(text);
+  }
+
+  function parseAiResponse(text) {
+    // Strip markdown code fences if present
+    const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+    // Find the first { ... } block
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try {
+      const obj = JSON.parse(match[0]);
+      return {
+        acronyms: Array.isArray(obj.acronyms)
+          ? obj.acronyms.map((a) => String(a).toUpperCase().trim()).filter(Boolean)
+          : [],
+        keywords: Array.isArray(obj.keywords)
+          ? obj.keywords.map((k) => String(k).toLowerCase().trim()).filter(Boolean)
+          : [],
+      };
+    } catch { return null; }
+  }
 
   // ---- Init ----
 
   async function init() {
+    setupAiSettings();
     setupEventListeners();
     // Load ranking data + deadline data in parallel; don't block the UI
     Promise.allSettled([loadRankingData(), loadDeadlineData()]).then(() => {
@@ -225,27 +405,48 @@
   // ---- Main handler ----
 
   async function handleFind() {
-    const keywords = parseKeywords(topicInput.value);
-    if (!keywords.length) return;
+    const rawQuery = topicInput.value.trim();
+    if (!rawQuery) return;
 
-    const coreRanks = getChecked("core-rank");
+    const coreRanks    = getChecked("core-rank");
     const scimagoRanks = getChecked("scimago-rank");
-    const types = getChecked("venue-type");
+    const types        = getChecked("venue-type");
 
     findBtn.disabled = true;
     progressSection.hidden = false;
     venuesSection.hidden = true;
     deadlinesSection.hidden = true;
 
-    setProgress(20, "Searching venues…");
+    let aiSuggestions = null;
+
+    if (isAiEnabled()) {
+      setProgress(10, "Asking AI for relevant venues…");
+      await tick();
+      try {
+        aiSuggestions = await callLlm(rawQuery);
+      } catch (e) {
+        console.warn("AI search failed, falling back to keyword search:", e);
+        aiSuggestions = null;
+      }
+    }
+
+    setProgress(40, "Searching venues…");
     await tick();
 
-    venueResults = searchVenues(keywords, coreRanks, scimagoRanks, types);
+    // Merge LLM keywords with user keywords for keyword search
+    const userKeywords = parseKeywords(rawQuery);
+    const allKeywords = aiSuggestions
+      ? [...new Set([...userKeywords, ...aiSuggestions.keywords.flatMap(parseKeywords)])]
+      : userKeywords;
 
-    setProgress(70, "Matching deadlines…");
+    venueResults = searchVenues(
+      allKeywords, coreRanks, scimagoRanks, types, aiSuggestions?.acronyms || []
+    );
+
+    setProgress(75, "Matching deadlines…");
     await tick();
 
-    deadlineResults = matchDeadlines(venueResults, keywords);
+    deadlineResults = matchDeadlines(venueResults, allKeywords);
 
     setProgress(100, "Done");
     await tick();
@@ -282,27 +483,31 @@
 
   // ---- Venue search ----
 
-  function searchVenues(keywords, coreRanks, scimagoRanks, types) {
+  function searchVenues(keywords, coreRanks, scimagoRanks, types, aiAcronyms = []) {
     const results = [];
+    const aiAcronymSet = new Set(aiAcronyms.map((a) => a.toUpperCase()));
+    // Boost score for AI-suggested venues so they sort to the top
+    const AI_BOOST = 1000;
 
     if (types.includes("conference") && coreData) {
       for (const [acronym, entry] of Object.entries(coreData.by_acronym)) {
         if (coreRanks.length && !coreRanks.includes(entry.r)) continue;
-        const score = scoreMatch(keywords, [acronym, entry.t]);
-        if (score > 0) {
-          const portalLink = entry.id
-            ? `https://portal.core.edu.au/conf-ranks/${entry.id}/`
-            : `https://portal.core.edu.au/conf-ranks/?search=${encodeURIComponent(acronym)}&by=acronym`;
-          results.push({
-            acronym,
-            title: entry.t,
-            ranking: entry.r,
-            system: "CORE",
-            type: "Conference",
-            link: portalLink,
-            score,
-          });
-        }
+        const kwScore   = scoreMatch(keywords, [acronym, entry.t]);
+        const aiMatched = aiAcronymSet.has(acronym.toUpperCase());
+        if (kwScore === 0 && !aiMatched) continue;
+        const portalLink = entry.id
+          ? `https://portal.core.edu.au/conf-ranks/${entry.id}/`
+          : `https://portal.core.edu.au/conf-ranks/?search=${encodeURIComponent(acronym)}&by=acronym`;
+        results.push({
+          acronym,
+          title: entry.t,
+          ranking: entry.r,
+          system: "CORE",
+          type: "Conference",
+          link: portalLink,
+          score: kwScore + (aiMatched ? AI_BOOST : 0),
+          aiSuggested: aiMatched,
+        });
       }
     }
 
@@ -315,17 +520,17 @@
         if (!q || q === "-") continue;
         if (scimagoRanks.length && !scimagoRanks.includes(q)) continue;
         const score = scoreMatch(keywords, [entry.t]);
-        if (score > 0) {
-          results.push({
-            acronym: "",
-            title: entry.t,
-            ranking: q,
-            system: "SCImago",
-            type: "Journal",
-            link: `https://www.scimagojr.com/journalsearch.php?q=${encodeURIComponent(entry.t)}`,
-            score,
-          });
-        }
+        if (score === 0) continue;
+        results.push({
+          acronym: "",
+          title: entry.t,
+          ranking: q,
+          system: "SCImago",
+          type: "Journal",
+          link: `https://www.scimagojr.com/journalsearch.php?q=${encodeURIComponent(entry.t)}`,
+          score,
+          aiSuggested: false,
+        });
       }
     }
 
@@ -492,10 +697,13 @@
       const linkCell = v.link
         ? `<a href="${escapeHtml(v.link)}" target="_blank" rel="noopener">View ↗</a>`
         : "—";
+      const aiBadge = v.aiSuggested
+        ? `<span class="badge-ai" title="Suggested by AI">AI</span> `
+        : "";
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${i + 1}</td>
-        <td class="title-cell">${clampHtml(v.title, 100)}</td>
+        <td class="title-cell">${aiBadge}${clampHtml(v.title, 100)}</td>
         <td>${escapeHtml(v.acronym || "—")}</td>
         <td>${escapeHtml(v.type)}</td>
         <td>

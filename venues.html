@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <title>P Ranker — Find Venues</title>
-  <link rel="stylesheet" href="css/style.css?v=11">
+  <link rel="stylesheet" href="css/style.css?v=12">
 </head>
 <body>
   <header>
@@ -60,11 +60,57 @@
       <div class="input-actions">
         <button type="button" id="find-btn" class="primary-btn" disabled>Find Venues</button>
         <button type="button" id="venues-clear-btn" class="secondary-btn">Clear</button>
+        <button type="button" id="ai-settings-btn" class="secondary-btn ai-settings-btn" title="Configure AI-powered search">
+          <span id="ai-status-dot" class="ai-dot ai-dot-off"></span> AI Search
+        </button>
       </div>
-      <p class="hint action-hint">
+      <p class="hint action-hint" id="search-hint">
         Keywords are matched against venue titles and acronyms in the bundled CORE and SCImago data.
         Upcoming submission deadlines are fetched live from aideadlin.es (requires internet).
       </p>
+    </section>
+
+    <!-- AI Settings panel (hidden by default) -->
+    <section class="ai-settings-panel" id="ai-settings-panel" hidden>
+      <div class="ai-settings-inner">
+        <h3 class="ai-settings-title">AI Search Settings</h3>
+        <p class="ai-settings-desc">
+          When enabled, your search query is sent to an LLM which suggests relevant conference
+          acronyms from its training knowledge and expands your keywords — then results are
+          looked up in the local CORE / SCImago data. Your API key is stored only in your
+          browser (localStorage) and never sent anywhere except the provider you choose.
+        </p>
+        <div class="ai-field-row">
+          <label for="ai-provider">Provider</label>
+          <select id="ai-provider">
+            <option value="groq">Groq (free — llama-3.3-70b)</option>
+            <option value="openai">OpenAI (gpt-4o-mini)</option>
+            <option value="gemini">Google Gemini (gemini-2.0-flash-lite)</option>
+            <option value="custom">Custom OpenAI-compatible endpoint</option>
+          </select>
+        </div>
+        <div class="ai-field-row" id="ai-custom-url-row" hidden>
+          <label for="ai-custom-url">Endpoint URL</label>
+          <input type="url" id="ai-custom-url" placeholder="https://…/v1/chat/completions">
+        </div>
+        <div class="ai-field-row" id="ai-model-row" hidden>
+          <label for="ai-model">Model</label>
+          <input type="text" id="ai-model" placeholder="e.g. llama-3.1-8b-instant">
+        </div>
+        <div class="ai-field-row">
+          <label for="ai-key">API Key</label>
+          <input type="password" id="ai-key" placeholder="Paste your API key here" autocomplete="off">
+        </div>
+        <div class="ai-settings-actions">
+          <button type="button" id="ai-save-btn" class="primary-btn">Save &amp; Enable</button>
+          <button type="button" id="ai-disable-btn" class="secondary-btn">Disable AI Search</button>
+        </div>
+        <p class="ai-key-hint">
+          Get a free Groq key at <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> ·
+          OpenAI: <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com/api-keys</a> ·
+          Gemini: <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com</a>
+        </p>
+      </div>
     </section>
 
     <section class="progress-section" id="progress-section" hidden>
@@ -142,6 +188,6 @@
 
   <!-- js-yaml for parsing the aideadlin.es YAML feed -->
   <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js" crossorigin="anonymous"></script>
-  <script src="js/venues.js?v=3"></script>
+  <script src="js/venues.js?v=4"></script>
 </body>
 </html>

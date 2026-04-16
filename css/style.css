@@ -664,3 +664,111 @@ footer a:hover {
     padding: 0.5rem 0.75rem;
   }
 }
+
+/* ---- AI Search ---- */
+
+.ai-settings-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ai-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ai-dot-on  { background: #22c55e; box-shadow: 0 0 4px #22c55e; }
+.ai-dot-off { background: #9ca3af; }
+
+.ai-settings-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  margin: 0 auto 1.5rem;
+  max-width: 720px;
+  padding: 1.5rem;
+}
+
+.ai-settings-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ai-settings-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.ai-settings-desc {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.ai-field-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ai-field-row label {
+  min-width: 110px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.ai-field-row select,
+.ai-field-row input[type="url"],
+.ai-field-row input[type="text"],
+.ai-field-row input[type="password"] {
+  flex: 1;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.ai-field-row select:focus,
+.ai-field-row input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.ai-settings-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.ai-key-hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.ai-key-hint a {
+  color: var(--color-primary);
+}
+
+/* AI-suggested badge inside the venues table */
+.badge-ai {
+  display: inline-block;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: #ede9fe;
+  color: #6d28d9;
+  vertical-align: middle;
+  margin-right: 0.25rem;
+  letter-spacing: 0.02em;
+}
