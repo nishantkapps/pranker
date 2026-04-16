@@ -116,7 +116,8 @@
     clearBtn.addEventListener("click", handleClear);
     exportBtn.addEventListener("click", handleExport);
     metadataExportBtn.addEventListener("click", handleMetadataExport);
-    metadataBody.addEventListener("click", onMetadataTableClick);
+    metadataBody.addEventListener("click", onSeeMoreClick);
+    resultsBody.addEventListener("click", onSeeMoreClick);
 
     document.querySelectorAll("th.sortable").forEach((th) => {
       th.addEventListener("click", () => handleSort(th.dataset.col));
@@ -553,7 +554,7 @@
 
       tr.innerHTML = `
         <td>${i + 1}</td>
-        <td class="title-cell">${escapeHtml(r.title || r.doi)}</td>
+        <td class="title-cell">${clampHtml(r.title || r.doi, ABSTRACT_CLIP_LENGTH)}</td>
         <td>${escapeHtml(r.source || "-")}</td>
         <td>${getTypeLabel(r.type)}</td>
         <td><span class="badge ${getBadgeClass(displayRanking)}">${escapeHtml(displayRanking)}</span>${systemLabel}</td>
@@ -571,20 +572,18 @@
       const displayRanking = r.ranking || "Not Ranked";
       const systemLabel = r.system && r.system !== "-" ? ` (${r.system})` : "";
       const abstract = r.abstract || "";
-      const needsClip = abstract.length > ABSTRACT_CLIP_LENGTH;
       const yearStr = r.year !== "" && r.year != null ? String(r.year) : "—";
       const pubStr = (r.publisher || r.source || "—");
       const citeStr = typeof r.citations === "number" ? String(r.citations) : "—";
 
+      const abstractHtml = abstract
+        ? clampHtml(abstract, ABSTRACT_CLIP_LENGTH)
+        : `<em style="color:var(--color-text-muted)">No abstract available</em>`;
+
       tr.innerHTML = `
         <td>${i + 1}</td>
-        <td class="title-cell">${escapeHtml(r.title || r.doi)}</td>
-        <td class="abstract-cell">
-          <div class="abstract-wrap">
-            <div class="abstract-text${needsClip ? "" : " is-expanded"}">${escapeHtml(abstract) || "<em style='color:var(--color-text-muted)'>No abstract available</em>"}</div>
-            ${needsClip ? '<button type="button" class="see-more-btn">see more</button>' : ""}
-          </div>
-        </td>
+        <td class="title-cell">${clampHtml(r.title || r.doi, ABSTRACT_CLIP_LENGTH)}</td>
+        <td class="abstract-cell">${abstractHtml}</td>
         <td>${escapeHtml(yearStr)}</td>
         <td>${escapeHtml(pubStr)}</td>
         <td><span class="badge ${getBadgeClass(displayRanking)}">${escapeHtml(displayRanking)}</span>${systemLabel}</td>
@@ -595,13 +594,22 @@
     });
   }
 
-  function onMetadataTableClick(e) {
+  function onSeeMoreClick(e) {
     const btn = e.target.closest(".see-more-btn");
     if (!btn) return;
-    const wrap = btn.closest(".abstract-wrap");
-    const textEl = wrap.querySelector(".abstract-text");
+    const wrap = btn.closest(".clamp-wrap");
+    const textEl = wrap.querySelector(".clamp-text");
     const expanded = textEl.classList.toggle("is-expanded");
     btn.textContent = expanded ? "see less" : "see more";
+  }
+
+  function clampHtml(text, threshold) {
+    if (!text) return "";
+    const needs = text.length > threshold;
+    return `<div class="clamp-wrap">
+      <div class="clamp-text${needs ? "" : " is-expanded"}">${escapeHtml(text)}</div>
+      ${needs ? '<button type="button" class="see-more-btn">see more</button>' : ""}
+    </div>`;
   }
 
   // ---- Sorting ----
