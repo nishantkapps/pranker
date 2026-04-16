@@ -148,8 +148,9 @@
   };
 
   const AI_PROMPT = (query) =>
-    `List high quality conferences and journals for ${query}. ` +
-    `Reply with a JSON object only, no explanation: {"acronyms": ["ICRA", "IROS", ...]}`;
+    `List the top 6-7 high quality academic conferences and journals for "${query}". ` +
+    `Reply with a JSON object only, no explanation: ` +
+    `{"venues": [{"acronym": "ICRA", "name": "IEEE International Conference on Robotics and Automation"}, ...]}`;
 
   async function callLlm(query) {
     const s = loadAiSettings();
@@ -184,7 +185,8 @@
       throw new Error(`LLM API error ${resp.status}: ${err}`);
     }
     const data = await resp.json();
-    return parseAiResponse(data.choices?.[0]?.message?.content || "");
+    const raw = data.choices?.[0]?.message?.content || "";
+    return parseAiResponse(raw);
   }
 
   async function callGemini(query, key) {
@@ -212,11 +214,25 @@
     if (!match) return null;
     try {
       const obj = JSON.parse(match[0]);
-      return {
-        acronyms: Array.isArray(obj.acronyms)
-          ? obj.acronyms.map((a) => String(a).toUpperCase().trim()).filter(Boolean)
-          : [],
-      };
+      // Support both new {venues:[{acronym,name}]} and old {acronyms:[]} formats
+      if (Array.isArray(obj.venues)) {
+        return {
+          venues: obj.venues
+            .filter((v) => v && v.acronym)
+            .map((v) => ({
+              acronym: String(v.acronym).toUpperCase().trim(),
+              name: String(v.name || v.acronym).trim(),
+            })),
+        };
+      }
+      if (Array.isArray(obj.acronyms)) {
+        return {
+          venues: obj.acronyms
+            .filter(Boolean)
+            .map((a) => ({ acronym: String(a).toUpperCase().trim(), name: "" })),
+        };
+      }
+      return null;
     } catch { return null; }
   }
 
@@ -419,18 +435,41 @@
     await tick();
 
     const userKeywords = parseKeywords(rawQuery);
-    const aiAcronyms = aiSuggestions?.acronyms || [];
+    const aiVenues = (aiSuggestions?.venues || []).slice(0, 7);
 
     // Step 1: keyword search against local data using the user's exact query
     const kwResults = searchVenues(userKeywords, coreRanks, scimagoRanks, types, []);
 
-    // Step 2: look up AI-suggested acronyms in local data;
-    //         append only those not already found by keyword search
+    // Step 2: for each AI-suggested venue, look it up in local data
+    //         - if found and not already in kwResults: append with AI badge + ranking
+    //         - if NOT in local data at all: append as AI-only entry (no ranking)
     const foundAcronyms = new Set(kwResults.map((v) => v.acronym.toUpperCase()));
-    const aiOnlyAcronyms = aiAcronyms.filter((a) => !foundAcronyms.has(a.toUpperCase()));
-    const aiExtra = aiOnlyAcronyms.length > 0
-      ? searchVenues([], coreRanks, scimagoRanks, types, aiOnlyAcronyms)
-      : [];
+    const aiExtra = [];
+    for (const { acronym, name } of aiVenues) {
+      if (foundAcronyms.has(acronym)) continue; // already in keyword results
+      const entry = coreData?.by_acronym?.[acronym];
+      if (entry) {
+        // In local data — only add if passes rank filter
+        if (coreRanks.length && !coreRanks.includes(entry.r)) continue;
+        const portalLink = entry.id
+          ? `https://portal.core.edu.au/conf-ranks/${entry.id}/`
+          : `https://portal.core.edu.au/conf-ranks/?search=${encodeURIComponent(acronym)}&by=acronym`;
+        aiExtra.push({
+          acronym, title: entry.t, ranking: entry.r,
+          system: "CORE", type: "Conference",
+          link: portalLink, score: 0, aiSuggested: true,
+        });
+      } else {
+        // Not in local data — show as AI-only suggestion
+        aiExtra.push({
+          acronym, title: name || acronym, ranking: "?",
+          system: "AI", type: "Conference",
+          link: `https://scholar.google.com/scholar?q=${encodeURIComponent(name || acronym)}`,
+          score: 0, aiSuggested: true,
+        });
+      }
+      foundAcronyms.add(acronym);
+    }
 
     venueResults = [...kwResults, ...aiExtra];
 
