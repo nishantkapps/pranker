@@ -55,12 +55,13 @@ def load_from_csv(path: Path) -> list[dict]:
         for row in csv.reader(f):
             if len(row) < 5:
                 continue
-            title   = row[1].strip()
-            acronym = row[2].strip().upper()
-            rank    = row[4].strip()
+            portal_id = row[0].strip()
+            title     = row[1].strip()
+            acronym   = row[2].strip().upper()
+            rank      = row[4].strip()
             if not title or not acronym:
                 continue
-            entries.append({"title": title, "acronym": acronym, "rank": rank})
+            entries.append({"id": portal_id, "title": title, "acronym": acronym, "rank": rank})
     return entries
 
 
@@ -107,7 +108,7 @@ def parse_table(html: str) -> list[dict]:
         rank    = cells[3].get_text(strip=True)
         if not title or not acronym:
             continue
-        entries.append({"title": title, "acronym": acronym.upper(), "rank": rank})
+        entries.append({"id": "", "title": title, "acronym": acronym.upper(), "rank": rank})
     return entries
 
 
@@ -148,14 +149,15 @@ def build_json(entries: list[dict]) -> dict:
     by_acronym: dict[str, dict] = {}
     by_title: dict[str, dict] = {}
     for entry in entries:
-        acronym = entry["acronym"]
-        title   = entry["title"]
-        rank    = entry["rank"]
+        acronym   = entry["acronym"]
+        title     = entry["title"]
+        rank      = entry["rank"]
+        portal_id = entry.get("id", "")
         # Keep the higher-ranked entry when the same acronym appears twice
         existing = by_acronym.get(acronym)
         if existing and RANK_ORDER.get(existing["r"], 0) >= RANK_ORDER.get(rank, 0):
             continue
-        by_acronym[acronym] = {"t": title, "r": rank}
+        by_acronym[acronym] = {"t": title, "r": rank, "id": portal_id}
         norm = normalize_title(title)
         if norm:
             by_title[norm] = {"a": acronym, "r": rank}

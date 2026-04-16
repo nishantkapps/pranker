@@ -290,12 +290,16 @@
         if (coreRanks.length && !coreRanks.includes(entry.r)) continue;
         const score = scoreMatch(keywords, [acronym, entry.t]);
         if (score > 0) {
+          const portalLink = entry.id
+            ? `https://portal.core.edu.au/conf-ranks/${entry.id}/`
+            : `https://portal.core.edu.au/conf-ranks/?search=${encodeURIComponent(acronym)}&by=acronym`;
           results.push({
             acronym,
             title: entry.t,
             ranking: entry.r,
             system: "CORE",
             type: "Conference",
+            link: portalLink,
             score,
           });
         }
@@ -318,6 +322,7 @@
             ranking: q,
             system: "SCImago",
             type: "Journal",
+            link: `https://www.scimagojr.com/journalsearch.php?q=${encodeURIComponent(entry.t)}`,
             score,
           });
         }
@@ -440,15 +445,53 @@
     } catch { return false; }
   }
 
+  /**
+   * Build a map from uppercase acronym → next upcoming conference date string.
+   * Uses the already-loaded deadlineEntries (aideadlin.es YAML).
+   */
+  function buildDateMap() {
+    const map = new Map();
+    for (const entry of deadlineEntries) {
+      const acr = (entry.title || entry.name || "").toUpperCase().trim();
+      if (!acr || !entry.date) continue;
+      // entry.date is a string like "2025-06-15" or "Jun 15-19, 2025"
+      // Only keep current/next year entries
+      const yr = entry.year ? parseInt(entry.year) : null;
+      if (yr && yr !== CURRENT_YEAR && yr !== NEXT_YEAR) continue;
+      const existing = map.get(acr);
+      // Prefer the soonest future date; fall back to any date
+      if (!existing) {
+        map.set(acr, entry.date);
+      } else {
+        // Keep the earlier (closer upcoming) date
+        try {
+          const a = new Date(String(entry.date).replace(" ", "T"));
+          const b = new Date(String(existing).replace(" ", "T"));
+          if (!isNaN(a) && a >= TODAY && (isNaN(b) || b < TODAY || a < b)) {
+            map.set(acr, entry.date);
+          }
+        } catch { /* leave existing */ }
+      }
+    }
+    return map;
+  }
+
   function renderVenuesTable() {
     venuesBody.innerHTML = "";
     if (!venueResults.length) {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="5" style="text-align:center;color:var(--color-text-muted);padding:1.5rem">No matching venues found. Try broader keywords or relax the ranking filters.</td>`;
+      tr.innerHTML = `<td colspan="7" style="text-align:center;color:var(--color-text-muted);padding:1.5rem">No matching venues found. Try broader keywords or relax the ranking filters.</td>`;
       venuesBody.appendChild(tr);
       return;
     }
+    const dateMap = buildDateMap();
     venueResults.forEach((v, i) => {
+      const nextDate = v.type === "Conference"
+        ? (dateMap.get(v.acronym.toUpperCase()) || "—")
+        : "—";
+      const linkCell = v.link
+        ? `<a href="${escapeHtml(v.link)}" target="_blank" rel="noopener">View ↗</a>`
+        : "—";
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${i + 1}</td>
@@ -459,6 +502,8 @@
           <span class="badge ${getBadgeClass(v.ranking)}">${escapeHtml(v.ranking)}</span>
           <span class="system-label">${escapeHtml(v.system)}</span>
         </td>
+        <td>${escapeHtml(String(nextDate))}</td>
+        <td>${linkCell}</td>
       `;
       venuesBody.appendChild(tr);
     });
@@ -535,10 +580,23 @@
 
   function handleVenuesExport() {
     if (!venueResults.length) return;
-    const headers = ["#", "Name", "Acronym", "Type", "Ranking", "System"];
-    const rows = venueResults.map((v, i) =>
-      [i + 1, csvCell(v.title), csvCell(v.acronym || ""), v.type, v.ranking, v.system].join(",")
-    );
+    const dateMap = buildDateMap();
+    const headers = ["#", "Name", "Acronym", "Type", "Ranking", "System", "Next Date", "Link"];
+    const rows = venueResults.map((v, i) => {
+      const nextDate = v.type === "Conference"
+        ? (dateMap.get(v.acronym.toUpperCase()) || "")
+        : "";
+      return [
+        i + 1,
+        csvCell(v.title),
+        csvCell(v.acronym || ""),
+        v.type,
+        csvCell(v.ranking),
+        v.system,
+        csvCell(nextDate),
+        csvCell(v.link || ""),
+      ].join(",");
+    });
     triggerDownload(
       [headers.join(","), ...rows].join("\n"),
       `venues-${new Date().toISOString().slice(0, 10)}.csv`
