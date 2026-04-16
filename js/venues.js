@@ -787,7 +787,8 @@
    * Uses the already-loaded deadlineEntries (aideadlin.es YAML).
    */
   function buildDateMap() {
-    // Per acronym: keep the most-recent entry, then project its date forward
+    // Per acronym: keep the most-recent entry, then project its date forward.
+    // Returns a map of acronym → { date, location, siteLink }
     const best = new Map();
     for (const entry of deadlineEntries) {
       const acr = (entry.title || entry.name || "").toUpperCase().trim();
@@ -800,7 +801,12 @@
       const proj = projectToFuture(entry.start);
       if (!proj) continue;
       const label = proj.date.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
-      map.set(acr, proj.estimated ? `~${label} (est.)` : (entry.date || label));
+      map.set(acr, {
+        date:     proj.estimated ? `~${label} (est.)` : (entry.date || label),
+        location: entry.place || "",
+        siteLink: entry.link || "",
+        estimated: proj.estimated,
+      });
     }
     return map;
   }
@@ -809,18 +815,18 @@
     venuesBody.innerHTML = "";
     if (!venueResults.length) {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="7" style="text-align:center;color:var(--color-text-muted);padding:1.5rem">No matching venues found. Try broader keywords or relax the ranking filters.</td>`;
+      tr.innerHTML = `<td colspan="8" style="text-align:center;color:var(--color-text-muted);padding:1.5rem">No matching venues found. Try broader keywords or relax the ranking filters.</td>`;
       venuesBody.appendChild(tr);
       return;
     }
     const dateMap = buildDateMap();
     venueResults.forEach((v, i) => {
-      const nextDate = v.type === "Conference"
-        ? (dateMap.get(v.acronym.toUpperCase()) || "—")
-        : "—";
-      const linkCell = v.link
-        ? `<a href="${escapeHtml(v.link)}" target="_blank" rel="noopener">View ↗</a>`
-        : "—";
+      const info = v.type === "Conference" ? dateMap.get(v.acronym.toUpperCase()) : null;
+      const nextDate   = info ? info.date     : "—";
+      const location   = info ? (info.location || "—") : "—";
+      const siteLink   = info?.siteLink
+        ? `<a href="${escapeHtml(info.siteLink)}" target="_blank" rel="noopener">Website ↗</a>`
+        : (v.link ? `<a href="${escapeHtml(v.link)}" target="_blank" rel="noopener">View ↗</a>` : "—");
       const aiBadge = v.aiSuggested
         ? `<span class="badge-ai" title="Suggested by AI">AI</span> `
         : "";
@@ -835,7 +841,8 @@
           <span class="system-label">${escapeHtml(v.system)}</span>
         </td>
         <td>${escapeHtml(String(nextDate))}</td>
-        <td>${linkCell}</td>
+        <td>${escapeHtml(location)}</td>
+        <td>${siteLink}</td>
       `;
       venuesBody.appendChild(tr);
     });
@@ -913,11 +920,9 @@
   function handleVenuesExport() {
     if (!venueResults.length) return;
     const dateMap = buildDateMap();
-    const headers = ["#", "Name", "Acronym", "Type", "Ranking", "System", "Next Date", "Link"];
+    const headers = ["#", "Name", "Acronym", "Type", "Ranking", "System", "Next Date", "Location", "Website", "Ranking Link"];
     const rows = venueResults.map((v, i) => {
-      const nextDate = v.type === "Conference"
-        ? (dateMap.get(v.acronym.toUpperCase()) || "")
-        : "";
+      const info = v.type === "Conference" ? dateMap.get(v.acronym.toUpperCase()) : null;
       return [
         i + 1,
         csvCell(v.title),
@@ -925,7 +930,9 @@
         v.type,
         csvCell(v.ranking),
         v.system,
-        csvCell(nextDate),
+        csvCell(info ? info.date : ""),
+        csvCell(info ? (info.location || "") : ""),
+        csvCell(info ? (info.siteLink || "") : ""),
         csvCell(v.link || ""),
       ].join(",");
     });
