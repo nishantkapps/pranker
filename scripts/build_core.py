@@ -30,7 +30,9 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 CSV_PATH = DATA_DIR / "core_raw.csv"
 OUTPUT_PATH = DATA_DIR / "core.json"
 
-VALID_RANKS = {"A*", "A", "B", "C"}
+# For deduplication: keep the entry with the highest-known rank when the same
+# acronym appears more than once. Anything not listed here gets score 0.
+RANK_ORDER = {"A*": 5, "A": 4, "B": 3, "Australasian B": 3, "C": 2, "Australasian C": 2}
 
 
 def normalize_title(title: str) -> str:
@@ -56,7 +58,7 @@ def load_from_csv(path: Path) -> list[dict]:
             title   = row[1].strip()
             acronym = row[2].strip().upper()
             rank    = row[4].strip()
-            if rank not in VALID_RANKS or not title or not acronym:
+            if not title or not acronym:
                 continue
             entries.append({"title": title, "acronym": acronym, "rank": rank})
     return entries
@@ -103,7 +105,7 @@ def parse_table(html: str) -> list[dict]:
         title   = cells[0].get_text(strip=True)
         acronym = cells[1].get_text(strip=True)
         rank    = cells[3].get_text(strip=True)
-        if rank not in VALID_RANKS or not title or not acronym:
+        if not title or not acronym:
             continue
         entries.append({"title": title, "acronym": acronym.upper(), "rank": rank})
     return entries
@@ -149,6 +151,10 @@ def build_json(entries: list[dict]) -> dict:
         acronym = entry["acronym"]
         title   = entry["title"]
         rank    = entry["rank"]
+        # Keep the higher-ranked entry when the same acronym appears twice
+        existing = by_acronym.get(acronym)
+        if existing and RANK_ORDER.get(existing["r"], 0) >= RANK_ORDER.get(rank, 0):
+            continue
         by_acronym[acronym] = {"t": title, "r": rank}
         norm = normalize_title(title)
         if norm:
