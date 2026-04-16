@@ -868,9 +868,6 @@
         ? `<span class="badge ${getBadgeClass(rank)}">${escapeHtml(rank)}</span>`
         : "—";
 
-      const abstractDl = d.abstract_deadline;
-      const paperDl = d.deadline;
-
       // Project conference date to the next future occurrence
       const proj = d.start ? projectToFuture(d.start) : null;
       let confDateCell;
@@ -883,25 +880,11 @@
         confDateCell = escapeHtml(d.date || "—");
       }
 
-      // Deadlines: if past show TBD, since they'll shift for the next edition
-      const abstractCell = abstractDl
-        ? isPast(abstractDl)
-          ? `<span class="dl-past" title="From ${String(abstractDl).slice(0,7)}; TBD for next edition">TBD</span>`
-          : escapeHtml(formatDate(abstractDl))
-        : "—";
-      const paperCell = paperDl
-        ? isPast(paperDl)
-          ? `<span class="dl-past" title="From ${String(paperDl).slice(0,7)}; TBD for next edition">TBD</span>`
-          : escapeHtml(formatDate(paperDl))
-        : "—";
-
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${i + 1}</td>
         <td class="title-cell">${escapeHtml(shortName)}${d.full_name ? `<br><span class="venue-fullname">${escapeHtml(d.full_name)}</span>` : ""}</td>
         <td>${rankCell}</td>
-        <td>${abstractCell}</td>
-        <td>${paperCell}</td>
         <td>${confDateCell}</td>
         <td>${escapeHtml(d.place || "—")}</td>
         <td>${d.link ? `<a href="${escapeHtml(d.link)}" target="_blank" rel="noopener">Website ↗</a>` : "—"}</td>
@@ -955,20 +938,23 @@
   function handleDeadlinesExport() {
     if (!deadlineResults.length) return;
     const headers = [
-      "#", "Conference", "Full Name", "CORE Ranking",
-      "Abstract Deadline", "Paper Deadline", "Conference Date", "Location", "Link",
+      "#", "Conference", "Full Name", "CORE Ranking", "Conference Date", "Location", "Link",
     ];
     const rows = deadlineResults.map((d, i) => {
       const shortName = d.title || d.name || "";
       const rank = getCoreRankForConf(shortName);
+      const proj = d.start ? projectToFuture(d.start) : null;
+      const confDate = proj
+        ? (proj.estimated
+            ? `~${proj.date.toLocaleDateString("en-GB", { month: "short", year: "numeric" })} (est.)`
+            : d.date || "")
+        : (d.date || "");
       return [
         i + 1,
         csvCell(shortName),
         csvCell(d.full_name || ""),
         csvCell(rank),
-        csvCell(formatDate(d.abstract_deadline)),
-        csvCell(formatDate(d.deadline)),
-        csvCell(d.date || ""),
+        csvCell(confDate),
         csvCell(d.place || ""),
         csvCell(d.link || ""),
       ].join(",");
