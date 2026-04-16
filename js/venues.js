@@ -105,8 +105,8 @@
     aiStatusDot.className = `ai-dot ${on ? "ai-dot-on" : "ai-dot-off"}`;
     aiSettingsBtn.title = on ? "AI search is ON — click to configure" : "Enable AI-powered search";
     searchHint.textContent = on
-      ? "AI search is ON: your query is sent to the LLM to suggest relevant venues and expand keywords, then looked up locally."
-      : "Keywords are matched against venue titles and acronyms in the bundled CORE and SCImago data. Upcoming submission deadlines are fetched live from aideadlin.es.";
+      ? "AI search is ON: your full query is interpreted semantically — the LLM derives precise technical keywords and up to 10 venue suggestions. Local data (CORE + SCImago) is searched with those keywords, then AI extras are appended."
+      : "Keywords from your query are matched against venue names and topic tags in the bundled CORE and SCImago data. Upcoming submission deadlines are fetched live from aideadlin.es.";
   }
 
   function setupAiSettings() {
@@ -148,9 +148,12 @@
   };
 
   const AI_PROMPT = (query) =>
-    `List the top 6-7 high quality academic conferences and journals for "${query}". ` +
-    `Reply with a JSON object only, no explanation: ` +
-    `{"venues": [{"acronym": "ICRA", "name": "IEEE International Conference on Robotics and Automation"}, ...]}`;
+    `A researcher typed this query: "${query}"\n\n` +
+    `Analyse the full meaning and return a JSON object ONLY, no explanation:\n` +
+    `{"keywords":["stereo vision","visual servoing","camera calibration"],"venues":[{"acronym":"CVPR","name":"IEEE/CVF Conference on Computer Vision and Pattern Recognition"}]}\n\n` +
+    `"keywords": up to 5 precise technical terms that capture the topic semantics. ` +
+    `Do NOT use words from the query literally. Do NOT include generic words like system, method, approach.\n` +
+    `"venues": up to 10 directly relevant conferences or journals.`;
 
   async function callLlm(query) {
     const s = loadAiSettings();
@@ -214,25 +217,32 @@
     if (!match) return null;
     try {
       const obj = JSON.parse(match[0]);
-      // Support both new {venues:[{acronym,name}]} and old {acronyms:[]} formats
+
+      // Extract semantic keywords (new field)
+      const keywords = Array.isArray(obj.keywords)
+        ? obj.keywords
+            .map((k) => String(k).toLowerCase().trim())
+            .filter((k) => k.length >= 2)
+            .slice(0, 5)
+        : [];
+
+      // Extract venue suggestions — support {venues:[{acronym,name}]} and legacy {acronyms:[]}
+      let venues = [];
       if (Array.isArray(obj.venues)) {
-        return {
-          venues: obj.venues
-            .filter((v) => v && v.acronym)
-            .map((v) => ({
-              acronym: String(v.acronym).toUpperCase().trim(),
-              name: String(v.name || v.acronym).trim(),
-            })),
-        };
+        venues = obj.venues
+          .filter((v) => v && v.acronym)
+          .map((v) => ({
+            acronym: String(v.acronym).toUpperCase().trim(),
+            name: String(v.name || v.acronym).trim(),
+          }));
+      } else if (Array.isArray(obj.acronyms)) {
+        venues = obj.acronyms
+          .filter(Boolean)
+          .map((a) => ({ acronym: String(a).toUpperCase().trim(), name: "" }));
       }
-      if (Array.isArray(obj.acronyms)) {
-        return {
-          venues: obj.acronyms
-            .filter(Boolean)
-            .map((a) => ({ acronym: String(a).toUpperCase().trim(), name: "" })),
-        };
-      }
-      return null;
+
+      if (!keywords.length && !venues.length) return null;
+      return { keywords, venues };
     } catch { return null; }
   }
 
@@ -418,38 +428,45 @@
     venuesSection.hidden = true;
     deadlinesSection.hidden = true;
 
-    let aiSuggestions = null;
+    let aiKeywords = [];
+    let aiVenueSuggestions = [];
 
     if (isAiEnabled()) {
-      setProgress(10, "Asking AI for relevant venues…");
+      setProgress(10, "Asking AI to interpret your query…");
       await tick();
       try {
-        aiSuggestions = await callLlm(rawQuery);
+        const aiResult = await callLlm(rawQuery);
+        if (aiResult) {
+          aiKeywords = aiResult.keywords || [];
+          aiVenueSuggestions = (aiResult.venues || []).slice(0, 10);
+        }
       } catch (e) {
         console.warn("AI search failed, falling back to keyword search:", e);
-        aiSuggestions = null;
       }
     }
 
     setProgress(40, "Searching venues…");
     await tick();
 
-    const userKeywords = parseKeywords(rawQuery);
-    const aiVenues = (aiSuggestions?.venues || []).slice(0, 7);
+    // Use LLM-generated semantic keywords for local search; fall back to raw words if AI is off
+    // Multi-word LLM keywords (e.g. "stereo vision") are split into individual tokens first
+    const rawKeywords = parseKeywords(rawQuery);
+    const searchKeywords = aiKeywords.length > 0
+      ? [...new Set(aiKeywords.flatMap((k) => parseKeywords(k)))]
+      : rawKeywords;
 
-    // Step 1: keyword search against local data using the user's exact query
-    const kwResults = searchVenues(userKeywords, coreRanks, scimagoRanks, types, []);
+    // Step 1: local search with semantic keywords against name + DBLP topics
+    const kwResults = searchVenues(searchKeywords, coreRanks, scimagoRanks, types, [], 30);
 
-    // Step 2: for each AI-suggested venue, look it up in local data
-    //         - if found and not already in kwResults: append with AI badge + ranking
-    //         - if NOT in local data at all: append as AI-only entry (no ranking)
+    // Step 2: for each AI-suggested venue not already found, look it up in local data
+    //   - found locally  → append with correct CORE/SCImago ranking + AI badge
+    //   - not found      → append as AI-only entry ("?" ranking) with DBLP link
     const foundAcronyms = new Set(kwResults.map((v) => v.acronym.toUpperCase()));
     const aiExtra = [];
-    for (const { acronym, name } of aiVenues) {
-      if (foundAcronyms.has(acronym)) continue; // already in keyword results
+    for (const { acronym, name } of aiVenueSuggestions) {
+      if (foundAcronyms.has(acronym)) continue;
       const entry = coreData?.by_acronym?.[acronym];
       if (entry) {
-        // In local data — only add if passes rank filter
         if (coreRanks.length && !coreRanks.includes(entry.r)) continue;
         const portalLink = entry.id
           ? `https://portal.core.edu.au/conf-ranks/${entry.id}/`
@@ -457,14 +474,16 @@
         aiExtra.push({
           acronym, title: entry.t, ranking: entry.r,
           system: "CORE", type: "Conference",
-          link: portalLink, score: 0, aiSuggested: true,
+          link: portalLink, dblpUrl: entry.dblp || null,
+          score: 0, aiSuggested: true,
         });
       } else {
-        // Not in local data — show as AI-only suggestion
+        // Not in local data — show with DBLP search link
+        const dblpSearch = `https://dblp.org/search?q=${encodeURIComponent(name || acronym)}`;
         aiExtra.push({
           acronym, title: name || acronym, ranking: "?",
           system: "AI", type: "Conference",
-          link: `https://scholar.google.com/scholar?q=${encodeURIComponent(name || acronym)}`,
+          link: dblpSearch, dblpUrl: null,
           score: 0, aiSuggested: true,
         });
       }
@@ -476,7 +495,7 @@
     setProgress(75, "Matching deadlines…");
     await tick();
 
-    deadlineResults = matchDeadlines(venueResults, userKeywords);
+    deadlineResults = matchDeadlines(venueResults, searchKeywords);
 
     setProgress(100, "Done");
     await tick();
@@ -513,18 +532,25 @@
 
   // ---- Venue search ----
 
-  function searchVenues(keywords, coreRanks, scimagoRanks, types, aiAcronyms = []) {
+  function searchVenues(keywords, coreRanks, scimagoRanks, types, aiAcronyms = [], maxResults = MAX_VENUE_RESULTS) {
     const results = [];
     const aiAcronymSet = new Set(aiAcronyms.map((a) => a.toUpperCase()));
-    // Boost score for AI-suggested venues so they sort to the top
     const AI_BOOST = 1000;
+    // Require at least 1 keyword match; when 3+ keywords are present the LLM
+    // has provided precise terms so a single match is still meaningful.
+    const minScore = 1;
 
     if (types.includes("conference") && coreData) {
       for (const [acronym, entry] of Object.entries(coreData.by_acronym)) {
         if (coreRanks.length && !coreRanks.includes(entry.r)) continue;
-        const kwScore   = scoreMatch(keywords, [acronym, entry.t]);
-        const aiMatched = aiAcronymSet.has(acronym.toUpperCase());
-        if (kwScore === 0 && !aiMatched) continue;
+        const nameScore  = scoreMatch(keywords, [acronym, entry.t]);
+        // topics are DBLP-derived word arrays — each element is a short word
+        const topicScore = Array.isArray(entry.topics)
+          ? scoreMatch(keywords, entry.topics) * 0.5
+          : 0;
+        const totalScore = nameScore + topicScore;
+        const aiMatched  = aiAcronymSet.has(acronym.toUpperCase());
+        if (totalScore < minScore && !aiMatched) continue;
         const portalLink = entry.id
           ? `https://portal.core.edu.au/conf-ranks/${entry.id}/`
           : `https://portal.core.edu.au/conf-ranks/?search=${encodeURIComponent(acronym)}&by=acronym`;
@@ -535,7 +561,8 @@
           system: "CORE",
           type: "Conference",
           link: portalLink,
-          score: kwScore + (aiMatched ? AI_BOOST : 0),
+          dblpUrl: entry.dblp || null,
+          score: totalScore + (aiMatched ? AI_BOOST : 0),
           aiSuggested: aiMatched,
         });
       }
@@ -550,7 +577,7 @@
         if (!q || q === "-") continue;
         if (scimagoRanks.length && !scimagoRanks.includes(q)) continue;
         const score = scoreMatch(keywords, [entry.t]);
-        if (score === 0) continue;
+        if (score < minScore) continue;
         results.push({
           acronym: "",
           title: entry.t,
@@ -559,6 +586,7 @@
           type: "Journal",
           link: `https://www.scimagojr.com/journalsearch.php?q=${encodeURIComponent(entry.t)}`,
           score,
+          dblpUrl: null,
           aiSuggested: false,
         });
       }
@@ -569,7 +597,7 @@
       return (RANK_ORDER[a.ranking] || 9) - (RANK_ORDER[b.ranking] || 9);
     });
 
-    return results.slice(0, MAX_VENUE_RESULTS);
+    return results.slice(0, maxResults);
   }
 
   // ---- Deadline matching ----

@@ -17,6 +17,9 @@ A client-side web app that determines the ranking (SCImago Q1-Q4 for journals, C
 pip install -r scripts/requirements.txt
 python scripts/build_scimago.py
 
+# Enrich core.json with DBLP topic tags (run once after build_core.py; takes ~16 min first run, cached after)
+python scripts/enrich_core_dblp.py
+
 # Refresh CORE conference data
 # 1. Go to https://portal.core.edu.au/conf-ranks/, select source ICORE2026, click Export CSV
 # 2. Save as data/core_raw.csv
