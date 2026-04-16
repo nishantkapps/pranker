@@ -463,7 +463,10 @@
     const foundAcronyms = new Set(kwResults.map((v) => v.acronym.toUpperCase()));
     const aiExtra = [];
 
+    // Normalize for lookup: lowercase, strip punctuation, collapse spaces.
+    // Also try stripping a leading "the " since some sources include it and others don't.
     const normTitle = (s) => (s || "").toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
+    const normTitleNoThe = (s) => normTitle(s).replace(/^the\s+/, "");
 
     for (const { acronym, name } of aiVenueSuggestions) {
       if (foundAcronyms.has(acronym)) continue;
@@ -507,12 +510,12 @@
         }
       }
 
-      // 3. SCImago journal by full name
+      // 3. SCImago journal by full name (try with and without leading "the ")
       if (name && scimagoData?.by_title) {
-        const sciEntry = scimagoData.by_title[normTitle(name)];
+        const sciEntry = scimagoData.by_title[normTitle(name)]
+                      || scimagoData.by_title[normTitleNoThe(name)];
         if (sciEntry) {
           if (!scimagoRanks.length || scimagoRanks.includes(sciEntry.q)) {
-            const issn = sciEntry.i || "";
             aiExtra.push({
               acronym, title: name, ranking: sciEntry.q,
               system: "SCImago", type: "Journal",
@@ -652,6 +655,23 @@
     return (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
   }
 
+  /**
+   * Project a past ISO date (YYYY-MM-DD) to the next future occurrence
+   * by incrementing the year, since most conferences repeat annually.
+   * Returns {date, estimated} where estimated=true if year was bumped.
+   */
+  function projectToFuture(isoStr) {
+    if (!isoStr) return null;
+    const d = new Date(isoStr);
+    if (isNaN(d)) return null;
+    let estimated = false;
+    while (d < TODAY) {
+      d.setFullYear(d.getFullYear() + 1);
+      estimated = true;
+    }
+    return { date: d, estimated };
+  }
+
   function matchDeadlines(venueResults, keywords) {
     if (!deadlineEntries.length) return [];
 
@@ -661,53 +681,41 @@
         .map((v) => v.acronym.toUpperCase())
     );
 
-    return deadlineEntries
-      .filter((entry) => {
-        // Only current and next year
-        const yr = entry.year ? parseInt(entry.year) : null;
-        if (yr && yr !== CURRENT_YEAR && yr !== NEXT_YEAR) return false;
+    // Deduplicate by acronym — keep only the most recent entry per conference
+    // so we get one projected row, not one per historical year.
+    const seen = new Set();
 
-        // Keep if the conference itself is still upcoming (date not yet passed),
-        // even if the submission deadline has already closed.
-        // Fall back to checking the deadline date if no conference date is available.
-        const confDateStr = entry.date || entry.start;
-        const dlStr = entry.deadline || entry.abstract_deadline;
+    const matched = deadlineEntries.filter((entry) => {
+      // Exclude very old data (before 2022) to avoid noise
+      const startIso = entry.start || "";
+      if (startIso && startIso < "2022-01-01") return false;
 
-        let isRelevantTime = false;
-        if (confDateStr) {
-          // Try to parse the first date in the conference date string
-          const firstDate = String(confDateStr).match(/\d{4}-\d{2}-\d{2}/);
-          if (firstDate) {
-            const confDate = new Date(firstDate[0]);
-            isRelevantTime = !isNaN(confDate) && confDate >= TODAY;
-          }
-          // If no ISO date found, fall through to deadline check
-        }
-        if (!isRelevantTime && dlStr) {
-          const dl = new Date(String(dlStr).replace(" ", "T"));
-          isRelevantTime = !isNaN(dl) && dl >= TODAY;
-        }
-        if (!isRelevantTime) return false;
+      const shortName = (entry.title || entry.name || "").toUpperCase().trim();
+      const fullName  = entry.full_name || "";
 
-        const shortName = (entry.title || entry.name || "").toUpperCase().trim();
-        const fullName = entry.full_name || "";
+      if (confAcronyms.size > 0 && confAcronyms.has(shortName)) return true;
+      return scoreMatch(keywords, [shortName, fullName]) > 0;
+    });
 
-        // Match if acronym found in our results, OR keyword matches name/full_name
-        if (confAcronyms.size > 0 && confAcronyms.has(shortName)) return true;
-        return scoreMatch(keywords, [shortName, fullName]) > 0;
-      })
+    // Keep most-recent entry per acronym (highest start date)
+    const byAcronym = new Map();
+    for (const entry of matched) {
+      const key = (entry.title || entry.name || "").toUpperCase().trim();
+      const existing = byAcronym.get(key);
+      const thisStart = entry.start || "0000";
+      const prevStart = existing ? (existing.start || "0000") : "";
+      if (!existing || thisStart > prevStart) byAcronym.set(key, entry);
+    }
+
+    return [...byAcronym.values()]
       .sort((a, b) => {
-        // Sort by next upcoming deadline; fall back to conference date
-        const getDate = (e) => {
-          const dl = e.deadline || e.abstract_deadline;
-          if (dl) {
-            const d = new Date(String(dl).replace(" ", "T"));
-            if (!isNaN(d) && d >= TODAY) return d;
-          }
-          const cd = (e.date || e.start || "").match(/\d{4}-\d{2}-\d{2}/);
-          return cd ? new Date(cd[0]) : new Date("9999-12-31");
+        // Sort by projected future conference date
+        const proj = (e) => {
+          const iso = e.start || "";
+          const p = projectToFuture(iso);
+          return p ? p.date : new Date("9999-12-31");
         };
-        return getDate(a) - getDate(b);
+        return proj(a) - proj(b);
       });
   }
 
@@ -779,28 +787,20 @@
    * Uses the already-loaded deadlineEntries (aideadlin.es YAML).
    */
   function buildDateMap() {
-    const map = new Map();
+    // Per acronym: keep the most-recent entry, then project its date forward
+    const best = new Map();
     for (const entry of deadlineEntries) {
       const acr = (entry.title || entry.name || "").toUpperCase().trim();
-      if (!acr || !entry.date) continue;
-      // entry.date is a string like "2025-06-15" or "Jun 15-19, 2025"
-      // Only keep current/next year entries
-      const yr = entry.year ? parseInt(entry.year) : null;
-      if (yr && yr !== CURRENT_YEAR && yr !== NEXT_YEAR) continue;
-      const existing = map.get(acr);
-      // Prefer the soonest future date; fall back to any date
-      if (!existing) {
-        map.set(acr, entry.date);
-      } else {
-        // Keep the earlier (closer upcoming) date
-        try {
-          const a = new Date(String(entry.date).replace(" ", "T"));
-          const b = new Date(String(existing).replace(" ", "T"));
-          if (!isNaN(a) && a >= TODAY && (isNaN(b) || b < TODAY || a < b)) {
-            map.set(acr, entry.date);
-          }
-        } catch { /* leave existing */ }
-      }
+      if (!acr || !entry.start) continue;
+      const existing = best.get(acr);
+      if (!existing || entry.start > existing.start) best.set(acr, entry);
+    }
+    const map = new Map();
+    for (const [acr, entry] of best) {
+      const proj = projectToFuture(entry.start);
+      if (!proj) continue;
+      const label = proj.date.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+      map.set(acr, proj.estimated ? `~${label} (est.)` : (entry.date || label));
     }
     return map;
   }
@@ -871,11 +871,28 @@
       const abstractDl = d.abstract_deadline;
       const paperDl = d.deadline;
 
+      // Project conference date to the next future occurrence
+      const proj = d.start ? projectToFuture(d.start) : null;
+      let confDateCell;
+      if (proj) {
+        const label = proj.date.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+        confDateCell = proj.estimated
+          ? `<span title="Based on last known date ${d.start}; actual date TBC">~${escapeHtml(label)} (est.)</span>`
+          : escapeHtml(d.date || label);
+      } else {
+        confDateCell = escapeHtml(d.date || "—");
+      }
+
+      // Deadlines: if past show TBD, since they'll shift for the next edition
       const abstractCell = abstractDl
-        ? `<span${isPast(abstractDl) ? ' class="dl-past" title="Deadline passed"' : ""}>${formatDate(abstractDl)}</span>`
+        ? isPast(abstractDl)
+          ? `<span class="dl-past" title="From ${String(abstractDl).slice(0,7)}; TBD for next edition">TBD</span>`
+          : escapeHtml(formatDate(abstractDl))
         : "—";
       const paperCell = paperDl
-        ? `<span${isPast(paperDl) ? ' class="dl-past" title="Deadline passed"' : ""}>${formatDate(paperDl)}</span>`
+        ? isPast(paperDl)
+          ? `<span class="dl-past" title="From ${String(paperDl).slice(0,7)}; TBD for next edition">TBD</span>`
+          : escapeHtml(formatDate(paperDl))
         : "—";
 
       const tr = document.createElement("tr");
@@ -885,7 +902,7 @@
         <td>${rankCell}</td>
         <td>${abstractCell}</td>
         <td>${paperCell}</td>
-        <td>${escapeHtml(d.date || "—")}</td>
+        <td>${confDateCell}</td>
         <td>${escapeHtml(d.place || "—")}</td>
         <td>${d.link ? `<a href="${escapeHtml(d.link)}" target="_blank" rel="noopener">Website ↗</a>` : "—"}</td>
       `;
