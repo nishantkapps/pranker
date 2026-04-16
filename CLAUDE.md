@@ -13,10 +13,16 @@ A client-side web app that determines the ranking (SCImago Q1-Q4 for journals, C
 ## Key Commands
 
 ```bash
-# Refresh ranking data locally (place SCImago export as data/scimago_raw.csv or data/scimagojr*.csv)
+# Refresh SCImago journal data (place export as data/scimago_raw.csv or data/scimagojr*.csv)
 pip install -r scripts/requirements.txt
 python scripts/build_scimago.py
+
+# Refresh CORE conference data
+# 1. Go to https://portal.core.edu.au/conf-ranks/, select source ICORE2026, click Export CSV
+# 2. Save as data/core_raw.csv
+# 3. Run:
 python scripts/build_core.py
+# If data/core_raw.csv is present it reads from it; otherwise falls back to web scraping.
 
 # Local dev server
 python -m http.server 8000
@@ -31,7 +37,9 @@ npx eslint js/app.js
 - `css/style.css` — styles
 - `js/app.js` — all application logic
 - `data/scimago.json` — journal ISSN→quartile map (generated)
+- `data/scimago_raw.csv` — SCImago raw export (source for build_scimago.py)
 - `data/core.json` — conference→rank map (generated)
+- `data/core_raw.csv` — CORE/ICORE raw export (source for build_core.py)
 - `scripts/` — Python data build scripts (run locally or when refreshing data)
 - `.github/workflows/ci.yml` — validate on PR/push
 - `.github/workflows/pages.yml` — deploy to GitHub Pages (`configure-pages@v5`, `deploy-pages@v5`); repo Settings → Pages → Source: **GitHub Actions** must be set once
