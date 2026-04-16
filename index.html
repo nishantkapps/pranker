@@ -8,7 +8,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <title>P Ranker — Paper Ranking Lookup</title>
   <!-- Bump ?v= when css/js change so clients fetch fresh assets (Pages CDN caches aggressively). -->
-  <link rel="stylesheet" href="css/style.css?v=7">
+  <link rel="stylesheet" href="css/style.css?v=9">
 </head>
 <body>
   <header>
@@ -46,15 +46,10 @@
 
       <div class="input-actions">
         <button type="button" id="rank-btn" class="primary-btn" disabled>Rank Papers</button>
-        <button type="button" id="pdf-zip-btn" class="secondary-btn" disabled>Download PDFs as ZIP</button>
         <button type="button" id="clear-btn" class="secondary-btn">Clear</button>
       </div>
       <p class="hint action-hint">
-        <strong>PDF ZIP</strong> uses the same DOI list. PDF links come from
-        <a href="https://unpaywall.org/" target="_blank" rel="noopener">Unpaywall</a>,
-        <a href="https://www.crossref.org/" target="_blank" rel="noopener">CrossRef</a>, and
-        <a href="https://openalex.org/" target="_blank" rel="noopener">OpenAlex</a> (open access only; max 100).
-        Your browser cannot read publisher HTML from DOI pages (CORS). If a direct PDF download fails, the app may retry via public CORS proxies (they see the URL). Paywalled or blocked files are listed below.
+        Paper titles and venues come from the <a href="https://www.crossref.org/" target="_blank" rel="noopener">CrossRef</a> API. Rankings use bundled SCImago and CORE data.
       </p>
     </section>
 
@@ -64,8 +59,6 @@
       </div>
       <p class="progress-text" id="progress-text">Working...</p>
     </section>
-
-    <p class="pdf-success-banner" id="pdf-success-banner" hidden></p>
 
     <section class="results-section" id="results-section" hidden>
       <div class="results-header">
@@ -88,25 +81,6 @@
         </table>
       </div>
     </section>
-
-    <section class="results-section" id="pdf-failures-section" hidden>
-      <div class="results-header">
-        <h2>PDF download issues <span class="result-count" id="pdf-fail-count-label"></span></h2>
-        <button type="button" id="pdf-fail-export-btn" class="secondary-btn">Export failures CSV</button>
-      </div>
-      <div class="table-wrapper">
-        <table id="pdf-failures-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>DOI</th>
-              <th>Reason</th>
-            </tr>
-          </thead>
-          <tbody id="pdf-failures-body"></tbody>
-        </table>
-      </div>
-    </section>
   </main>
 
   <footer>
@@ -114,13 +88,9 @@
       Data from <a href="https://www.scimagojr.com/" target="_blank" rel="noopener">SCImago</a> (journals)
       and <a href="https://portal.core.edu.au/conf-ranks/" target="_blank" rel="noopener">CORE Rankings</a> (conferences).
       Paper metadata from <a href="https://www.crossref.org/" target="_blank" rel="noopener">CrossRef</a>.
-      PDF discovery: <a href="https://unpaywall.org/" target="_blank" rel="noopener">Unpaywall</a>,
-      <a href="https://www.crossref.org/" target="_blank" rel="noopener">CrossRef</a>,
-      <a href="https://openalex.org/" target="_blank" rel="noopener">OpenAlex</a>.
     </p>
   </footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" crossorigin="anonymous"></script>
-  <script src="js/app.js?v=7"></script>
+  <script src="js/app.js?v=9"></script>
 </body>
 </html>

@@ -10,8 +10,6 @@
   const CROSSREF_API = "https://api.crossref.org/works/";
   const CROSSREF_MAILTO = "pranker-tool@users.noreply.github.com";
   const MAX_CONCURRENT = 5;
-  const MAX_PDF_DOIS = 100;
-  const MAX_PDF_CONCURRENT = 3;
   const REQUEST_TIMEOUT = 15000;
 
   // ---- State ----
@@ -21,7 +19,6 @@
   let results = [];
   let sortCol = null;
   let sortDir = "asc";
-  let pdfFailures = [];
 
   // ---- DOM references ----
 
@@ -41,12 +38,6 @@
   const exportBtn = document.getElementById("export-btn");
   const tabBtns = document.querySelectorAll(".tab-btn");
   const tabContents = document.querySelectorAll(".tab-content");
-  const pdfZipBtn = document.getElementById("pdf-zip-btn");
-  const pdfSuccessBanner = document.getElementById("pdf-success-banner");
-  const pdfFailuresSection = document.getElementById("pdf-failures-section");
-  const pdfFailuresBody = document.getElementById("pdf-failures-body");
-  const pdfFailCountLabel = document.getElementById("pdf-fail-count-label");
-  const pdfFailExportBtn = document.getElementById("pdf-fail-export-btn");
 
   // ---- Initialization ----
 
@@ -117,9 +108,6 @@
     clearBtn.addEventListener("click", handleClear);
     exportBtn.addEventListener("click", handleExport);
 
-    pdfZipBtn.addEventListener("click", handlePdfZipDownload);
-    pdfFailExportBtn.addEventListener("click", handlePdfFailExport);
-
     document.querySelectorAll("th.sortable").forEach((th) => {
       th.addEventListener("click", () => handleSort(th.dataset.col));
     });
@@ -154,7 +142,6 @@
       hasDois = csvFileInput.files.length > 0;
     }
     rankBtn.disabled = !hasDois;
-    pdfZipBtn.disabled = !hasDois;
   }
 
   // ---- DOI Parsing ----
@@ -288,296 +275,6 @@
     );
     await Promise.all(workers);
     return results;
-  }
-
-  // ---- PDF download: Unpaywall + CrossRef + OpenAlex; fetch via direct or CORS proxies ----
-
-  function pickBestPdfUrlFromCrossRefLinks(links) {
-    if (!links || !links.length) return null;
-    const candidates = [];
-    for (const l of links) {
-      const u = l.URL;
-      if (!u || typeof u !== "string") continue;
-      const ct = (l["content-type"] || "").toLowerCase();
-      const isPdfMime =
-        ct.includes("pdf") ||
-        ct.includes("x-pdf") ||
-        ct.includes("acrobat");
-      const looksPdfPath = /\.pdf(\?|#|$)/i.test(u);
-      if (!isPdfMime && !looksPdfPath) continue;
-      let score = looksPdfPath ? 2 : 1;
-      if (ct.includes("application/pdf")) score = 4;
-      else if (isPdfMime) score = 3;
-      candidates.push({ url: u, score });
-    }
-    candidates.sort((a, b) => b.score - a.score);
-    return candidates.length ? candidates[0].url : null;
-  }
-
-  async function resolvePdfUrlFromOpenAlex(doi) {
-    try {
-      const filterUrl = `https://api.openalex.org/works?filter=${encodeURIComponent(
-        `doi:${doi}`
-      )}&per_page=1`;
-      const resp = await fetchWithTimeout(filterUrl, 20000);
-      if (!resp.ok) return null;
-      const data = await resp.json();
-      const work = data.results && data.results[0];
-      if (!work) return null;
-      for (const loc of work.locations || []) {
-        if (loc.pdf_url) return loc.pdf_url;
-      }
-      const oa = work.open_access;
-      if (oa && oa.oa_url && /\.pdf(\?|#|$)/i.test(oa.oa_url)) {
-        return oa.oa_url;
-      }
-      if (oa && oa.oa_url && oa.is_oa) {
-        return oa.oa_url;
-      }
-    } catch (_) {
-      return null;
-    }
-    return null;
-  }
-
-  function sanitizeDoiFilename(doi) {
-    let s = doi.replace(/[^a-zA-Z0-9._-]+/g, "_");
-    if (s.length > 120) s = s.slice(0, 120);
-    return s || "unknown";
-  }
-
-  function formatPdfError(err) {
-    const msg = err && err.message ? err.message : String(err);
-    if (msg === "Failed to fetch" || err.name === "TypeError") {
-      return "Download blocked (CORS/network — try the publisher site)";
-    }
-    return msg;
-  }
-
-  async function resolvePdfUrl(doi) {
-    let uwJson = null;
-    try {
-      const email = encodeURIComponent(CROSSREF_MAILTO);
-      const uwResp = await fetchWithTimeout(
-        `https://api.unpaywall.org/v2/${encodeURIComponent(doi)}?email=${email}`,
-        25000
-      );
-      if (uwResp.ok) {
-        uwJson = await uwResp.json();
-        const best = uwJson.best_oa_location;
-        if (best && best.url_for_pdf) {
-          return { url: best.url_for_pdf };
-        }
-        for (const loc of uwJson.oa_locations || []) {
-          if (loc.url_for_pdf) {
-            return { url: loc.url_for_pdf };
-          }
-        }
-      }
-    } catch (_) {
-      /* continue */
-    }
-
-    try {
-      const crResp = await fetchWithTimeout(
-        `${CROSSREF_API}${encodeURIComponent(doi)}?mailto=${CROSSREF_MAILTO}`,
-        REQUEST_TIMEOUT
-      );
-      if (crResp.ok) {
-        const data = await crResp.json();
-        const links = data.message && data.message.link ? data.message.link : [];
-        const crPdf = pickBestPdfUrlFromCrossRefLinks(links);
-        if (crPdf) {
-          return { url: crPdf };
-        }
-      }
-    } catch (_) {
-      /* ignore */
-    }
-
-    const openAlexPdf = await resolvePdfUrlFromOpenAlex(doi);
-    if (openAlexPdf) {
-      return { url: openAlexPdf };
-    }
-
-    if (uwJson && uwJson.is_oa === false) {
-      return { error: "Not open access (Unpaywall)" };
-    }
-    return { error: "No PDF URL found" };
-  }
-
-  async function tryFetchPdfOnce(resourceUrl) {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 90000);
-    try {
-      const resp = await fetch(resourceUrl, {
-        mode: "cors",
-        credentials: "omit",
-        redirect: "follow",
-        signal: ctrl.signal,
-      });
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}`);
-      }
-      const blob = await resp.blob();
-      if (blob.size < 400) {
-        throw new Error("Response too small (not a PDF)");
-      }
-      return blob;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  /** Direct fetch first; then public CORS proxies (third parties see the URL). */
-  async function downloadPdfBlob(url) {
-    const proxyUrls = [
-      url,
-      `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-    ];
-    let lastErr;
-    for (const resourceUrl of proxyUrls) {
-      try {
-        return await tryFetchPdfOnce(resourceUrl);
-      } catch (e) {
-        lastErr = e;
-      }
-    }
-    throw lastErr;
-  }
-
-
-  async function fetchOnePdf(doi) {
-    const resolved = await resolvePdfUrl(doi);
-    if (resolved.error) {
-      return { doi, error: resolved.error };
-    }
-    try {
-      const blob = await downloadPdfBlob(resolved.url);
-      return { doi, blob };
-    } catch (err) {
-      return { doi, error: formatPdfError(err) };
-    }
-  }
-
-  async function handlePdfZipDownload() {
-    if (typeof JSZip === "undefined") {
-      alert("JSZip failed to load. Check your network and refresh the page.");
-      return;
-    }
-
-    let dois = await getDoisFromActiveTab();
-    if (!dois.length) {
-      alert("No valid DOIs found. Please check your input.");
-      return;
-    }
-
-    if (dois.length > MAX_PDF_DOIS) {
-      alert(`Only the first ${MAX_PDF_DOIS} DOIs will be processed.`);
-      dois = dois.slice(0, MAX_PDF_DOIS);
-    }
-
-    rankBtn.disabled = true;
-    pdfZipBtn.disabled = true;
-    progressSection.hidden = false;
-    pdfSuccessBanner.hidden = true;
-    pdfFailuresSection.hidden = true;
-    pdfFailures = [];
-
-    const total = dois.length;
-    let done = 0;
-
-    const tasks = dois.map((doi) => async () => {
-      const result = await fetchOnePdf(doi);
-      done++;
-      const pct = Math.round((done / total) * 100);
-      progressFill.style.width = `${pct}%`;
-      progressText.textContent = `Downloading PDFs… ${done}/${total}`;
-      return result;
-    });
-
-    const outcomes = await runWithConcurrency(tasks, MAX_PDF_CONCURRENT);
-
-    const successes = outcomes.filter((o) => o.blob);
-    pdfFailures = outcomes
-      .filter((o) => o.error)
-      .map((o) => ({ doi: o.doi, reason: o.error }));
-
-    progressSection.hidden = true;
-
-    if (successes.length) {
-      const zip = new JSZip();
-      const usedNames = new Set();
-      successes.forEach((o, i) => {
-        let base = sanitizeDoiFilename(o.doi);
-        let name = `${base}.pdf`;
-        let n = 1;
-        while (usedNames.has(name)) {
-          name = `${base}_${n}.pdf`;
-          n++;
-        }
-        usedNames.add(name);
-        zip.file(name, o.blob);
-      });
-
-      const zipBlob = await zip.generateAsync({
-        type: "blob",
-        compression: "DEFLATE",
-        compressionOptions: { level: 6 },
-      });
-
-      const url = URL.createObjectURL(zipBlob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `pdfs-${new Date().toISOString().slice(0, 10)}-${successes.length}.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
-
-      pdfSuccessBanner.textContent = `Download started: ZIP with ${successes.length} PDF${successes.length === 1 ? "" : "s"}.`;
-      pdfSuccessBanner.hidden = false;
-    } else {
-      pdfSuccessBanner.textContent =
-        "No PDFs could be downloaded. See the table below.";
-      pdfSuccessBanner.hidden = false;
-    }
-
-    if (pdfFailures.length) {
-      pdfFailCountLabel.textContent = `(${pdfFailures.length})`;
-      pdfFailuresBody.innerHTML = "";
-      pdfFailures.forEach((row, i) => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${i + 1}</td>
-          <td class="doi-cell"><a href="https://doi.org/${encodeURIComponent(row.doi)}" target="_blank" rel="noopener">${escapeHtml(row.doi)}</a></td>
-          <td>${escapeHtml(row.reason)}</td>
-        `;
-        pdfFailuresBody.appendChild(tr);
-      });
-      pdfFailuresSection.hidden = false;
-    }
-
-    rankBtn.disabled = false;
-    pdfZipBtn.disabled = false;
-    updateRankBtnState();
-  }
-
-  function handlePdfFailExport() {
-    if (!pdfFailures.length) return;
-    const headers = ["#", "DOI", "Reason"];
-    const rows = pdfFailures.map((r, i) => [
-      i + 1,
-      r.doi,
-      `"${(r.reason || "").replace(/"/g, '""')}"`,
-    ]);
-    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `pdf-download-failures-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   // ---- Ranking Lookup ----
@@ -716,7 +413,6 @@
     }
 
     rankBtn.disabled = true;
-    pdfZipBtn.disabled = true;
     progressSection.hidden = false;
     resultsSection.hidden = true;
     results = [];
@@ -740,7 +436,6 @@
     sortCol = null;
     renderTable();
     rankBtn.disabled = false;
-    pdfZipBtn.disabled = false;
     updateRankBtnState();
   }
 
@@ -897,10 +592,6 @@
     resultsSection.hidden = true;
     results = [];
     resultsBody.innerHTML = "";
-    pdfSuccessBanner.hidden = true;
-    pdfFailuresSection.hidden = true;
-    pdfFailures = [];
-    pdfFailuresBody.innerHTML = "";
     updateRankBtnState();
   }
 
