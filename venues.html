@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <title>P Ranker — Find Venues</title>
+  <link rel="stylesheet" href="css/style.css?v=11">
+</head>
+<body>
+  <header>
+    <h1>P Ranker</h1>
+    <p class="subtitle">Find ranked conferences &amp; journals by topic</p>
+    <nav class="app-nav">
+      <a href="index.html" class="nav-link">Rank Papers</a>
+      <a href="venues.html" class="nav-link active">Find Venues</a>
+    </nav>
+  </header>
+
+  <p class="disclaimer" role="note">
+    Conference rankings from <strong>CORE 2026</strong>; journal rankings from <strong>SCImago 2024</strong>.
+    Submission deadlines are sourced live from
+    <a href="https://aideadlin.es/" target="_blank" rel="noopener">aideadlin.es</a>
+    and currently cover primarily CS&nbsp;/&nbsp;AI&nbsp;/&nbsp;ML venues.
+    For other fields, deadline data may be unavailable.
+  </p>
+
+  <main>
+    <section class="input-section">
+      <label class="field-label" for="topic-input">Topic or keywords</label>
+      <textarea
+        id="topic-input"
+        placeholder="e.g.  machine learning&#10;software engineering&#10;natural language processing, bioinformatics"
+        rows="4"
+      ></textarea>
+
+      <div class="venue-filters">
+        <div class="filter-group">
+          <span class="filter-label">Conference ranking (CORE)</span>
+          <label><input type="checkbox" name="core-rank" value="A*" checked> A*</label>
+          <label><input type="checkbox" name="core-rank" value="A"  checked> A</label>
+          <label><input type="checkbox" name="core-rank" value="B"  checked> B</label>
+          <label><input type="checkbox" name="core-rank" value="C"> C</label>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Journal ranking (SCImago)</span>
+          <label><input type="checkbox" name="scimago-rank" value="Q1" checked> Q1</label>
+          <label><input type="checkbox" name="scimago-rank" value="Q2" checked> Q2</label>
+          <label><input type="checkbox" name="scimago-rank" value="Q3"> Q3</label>
+          <label><input type="checkbox" name="scimago-rank" value="Q4"> Q4</label>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Type</span>
+          <label><input type="checkbox" name="venue-type" value="conference" checked> Conferences</label>
+          <label><input type="checkbox" name="venue-type" value="journal"    checked> Journals</label>
+        </div>
+      </div>
+
+      <div class="input-actions">
+        <button type="button" id="find-btn" class="primary-btn" disabled>Find Venues</button>
+        <button type="button" id="venues-clear-btn" class="secondary-btn">Clear</button>
+      </div>
+      <p class="hint action-hint">
+        Keywords are matched against venue titles and acronyms in the bundled CORE and SCImago data.
+        Upcoming submission deadlines are fetched live from aideadlin.es (requires internet).
+      </p>
+    </section>
+
+    <section class="progress-section" id="progress-section" hidden>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <p class="progress-text" id="progress-text">Searching…</p>
+    </section>
+
+    <!-- Matching venues -->
+    <section class="result-collapsible" id="venues-section" hidden>
+      <details class="result-details" open>
+        <summary class="result-summary">
+          <span class="result-summary-title">Matching venues</span>
+          <span class="result-count" id="venues-count"></span>
+          <button type="button" id="venues-export-btn" class="secondary-btn small-btn">Download CSV</button>
+        </summary>
+        <div class="table-wrapper">
+          <table id="venues-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Acronym</th>
+                <th>Type</th>
+                <th>Ranking</th>
+              </tr>
+            </thead>
+            <tbody id="venues-body"></tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+
+    <!-- Upcoming deadlines -->
+    <section class="result-collapsible" id="deadlines-section" hidden>
+      <details class="result-details" open>
+        <summary class="result-summary">
+          <span class="result-summary-title">Upcoming submission deadlines</span>
+          <span class="result-count" id="deadlines-count"></span>
+          <button type="button" id="deadlines-export-btn" class="secondary-btn small-btn">Download CSV</button>
+        </summary>
+        <p class="deadlines-note" id="deadlines-note" hidden></p>
+        <div class="table-wrapper">
+          <table id="deadlines-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Conference</th>
+                <th>Ranking</th>
+                <th>Abstract deadline</th>
+                <th>Paper deadline</th>
+                <th>Conference date</th>
+                <th>Location</th>
+                <th>Link</th>
+              </tr>
+            </thead>
+            <tbody id="deadlines-body"></tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      Conference rankings from <a href="https://portal.core.edu.au/conf-ranks/" target="_blank" rel="noopener">CORE Rankings</a>.
+      Journal rankings from <a href="https://www.scimagojr.com/" target="_blank" rel="noopener">SCImago</a>.
+      Deadlines from <a href="https://aideadlin.es/" target="_blank" rel="noopener">aideadlin.es</a>
+      (CS&nbsp;/&nbsp;AI&nbsp;/&nbsp;ML conferences only).
+    </p>
+  </footer>
+
+  <!-- js-yaml for parsing the aideadlin.es YAML feed -->
+  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js" crossorigin="anonymous"></script>
+  <script src="js/venues.js?v=1"></script>
+</body>
+</html>

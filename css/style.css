@@ -44,7 +44,38 @@ body {
 
 header {
   text-align: center;
-  padding: 2.5rem 1rem 1.5rem;
+  padding: 2.5rem 1rem 1rem;
+}
+
+/* App-level navigation */
+
+.app-nav {
+  display: flex;
+  justify-content: center;
+  gap: 0;
+  margin-top: 1rem;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.nav-link {
+  display: inline-block;
+  padding: 0.5rem 1.4rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.nav-link:hover {
+  color: var(--color-text);
+}
+
+.nav-link.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
 }
 
 header h1 {
@@ -525,6 +556,82 @@ footer a {
 
 footer a:hover {
   text-decoration: underline;
+}
+
+/* Venue-discovery specific styles */
+
+.field-label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.4rem;
+  color: var(--color-text);
+}
+
+.venue-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.filter-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 0.25rem;
+  white-space: nowrap;
+}
+
+.filter-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.filter-group input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+.system-label {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin-left: 0.25rem;
+}
+
+.venue-fullname {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  display: block;
+  margin-top: 0.15rem;
+}
+
+.deadlines-note {
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  background: #fffbeb;
+  border-bottom: 1px solid #fde68a;
+}
+
+.dl-past {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
 }
 
 /* Responsive */
