@@ -667,11 +667,27 @@
         const yr = entry.year ? parseInt(entry.year) : null;
         if (yr && yr !== CURRENT_YEAR && yr !== NEXT_YEAR) return false;
 
-        // Only future deadlines
+        // Keep if the conference itself is still upcoming (date not yet passed),
+        // even if the submission deadline has already closed.
+        // Fall back to checking the deadline date if no conference date is available.
+        const confDateStr = entry.date || entry.start;
         const dlStr = entry.deadline || entry.abstract_deadline;
-        if (!dlStr) return false;
-        const dl = new Date(String(dlStr).replace(" ", "T"));
-        if (isNaN(dl) || dl < TODAY) return false;
+
+        let isRelevantTime = false;
+        if (confDateStr) {
+          // Try to parse the first date in the conference date string
+          const firstDate = String(confDateStr).match(/\d{4}-\d{2}-\d{2}/);
+          if (firstDate) {
+            const confDate = new Date(firstDate[0]);
+            isRelevantTime = !isNaN(confDate) && confDate >= TODAY;
+          }
+          // If no ISO date found, fall through to deadline check
+        }
+        if (!isRelevantTime && dlStr) {
+          const dl = new Date(String(dlStr).replace(" ", "T"));
+          isRelevantTime = !isNaN(dl) && dl >= TODAY;
+        }
+        if (!isRelevantTime) return false;
 
         const shortName = (entry.title || entry.name || "").toUpperCase().trim();
         const fullName = entry.full_name || "";
@@ -681,13 +697,17 @@
         return scoreMatch(keywords, [shortName, fullName]) > 0;
       })
       .sort((a, b) => {
-        const da = new Date(
-          String(a.deadline || a.abstract_deadline || "").replace(" ", "T")
-        );
-        const db = new Date(
-          String(b.deadline || b.abstract_deadline || "").replace(" ", "T")
-        );
-        return da - db;
+        // Sort by next upcoming deadline; fall back to conference date
+        const getDate = (e) => {
+          const dl = e.deadline || e.abstract_deadline;
+          if (dl) {
+            const d = new Date(String(dl).replace(" ", "T"));
+            if (!isNaN(d) && d >= TODAY) return d;
+          }
+          const cd = (e.date || e.start || "").match(/\d{4}-\d{2}-\d{2}/);
+          return cd ? new Date(cd[0]) : new Date("9999-12-31");
+        };
+        return getDate(a) - getDate(b);
       });
   }
 
@@ -835,7 +855,7 @@
       deadlinesNote.hidden = false;
     } else if (!deadlineResults.length) {
       deadlinesNote.textContent =
-        "No upcoming deadlines found for this topic in the deadline database. Note: coverage is primarily CS / AI / ML venues via aideadlin.es.";
+        "No current or upcoming conferences found for this topic in the deadline database. Note: coverage is primarily CS / AI / ML venues via aideadlin.es.";
       deadlinesNote.hidden = false;
     } else {
       deadlinesNote.hidden = true;
@@ -852,10 +872,10 @@
       const paperDl = d.deadline;
 
       const abstractCell = abstractDl
-        ? `<span${isPast(abstractDl) ? ' class="dl-past"' : ""}>${formatDate(abstractDl)}</span>`
+        ? `<span${isPast(abstractDl) ? ' class="dl-past" title="Deadline passed"' : ""}>${formatDate(abstractDl)}</span>`
         : "—";
       const paperCell = paperDl
-        ? `<span${isPast(paperDl) ? ' class="dl-past"' : ""}>${formatDate(paperDl)}</span>`
+        ? `<span${isPast(paperDl) ? ' class="dl-past" title="Deadline passed"' : ""}>${formatDate(paperDl)}</span>`
         : "—";
 
       const tr = document.createElement("tr");
