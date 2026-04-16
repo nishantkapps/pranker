@@ -148,17 +148,8 @@
   };
 
   const AI_PROMPT = (query) =>
-    `You are a computer science research expert helping a researcher find relevant academic venues.
-
-Research topic: "${query}"
-
-List the academic conferences and journals that are directly relevant to this topic.
-Respond with a single JSON object (no markdown, no explanation):
-{
-  "acronyms": ["ICRA", "IROS", "HRI", ...]
-}
-
-Return 5–15 real academic venue acronyms. Only include venues that are clearly and directly about this topic. Do not include tangentially related venues.`;
+    `List high quality conferences and journals for ${query}. ` +
+    `Reply with a JSON object only, no explanation: {"acronyms": ["ICRA", "IROS", ...]}`;
 
   async function callLlm(query) {
     const s = loadAiSettings();
