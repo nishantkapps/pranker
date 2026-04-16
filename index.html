@@ -8,7 +8,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <title>P Ranker — Paper Ranking Lookup</title>
   <!-- Bump ?v= when css/js change so clients fetch fresh assets (Pages CDN caches aggressively). -->
-  <link rel="stylesheet" href="css/style.css?v=9">
+  <link rel="stylesheet" href="css/style.css?v=10">
 </head>
 <body>
   <header>
@@ -46,10 +46,13 @@
 
       <div class="input-actions">
         <button type="button" id="rank-btn" class="primary-btn" disabled>Rank Papers</button>
+        <button type="button" id="metadata-btn" class="secondary-btn" disabled>Download Abstracts</button>
         <button type="button" id="clear-btn" class="secondary-btn">Clear</button>
       </div>
       <p class="hint action-hint">
-        Paper titles and venues come from the <a href="https://www.crossref.org/" target="_blank" rel="noopener">CrossRef</a> API. Rankings use bundled SCImago and CORE data.
+        <strong>Rank Papers</strong> looks up journal/conference rankings.
+        <strong>Download Abstracts</strong> fetches title, abstract, year, publisher, ranking and citation count — exports as a CSV that opens in Excel.
+        Both use the same DOI list via <a href="https://www.crossref.org/" target="_blank" rel="noopener">CrossRef</a>.
       </p>
     </section>
 
@@ -60,26 +63,56 @@
       <p class="progress-text" id="progress-text">Working...</p>
     </section>
 
-    <section class="results-section" id="results-section" hidden>
-      <div class="results-header">
-        <h2>Results <span class="result-count" id="result-count"></span></h2>
-        <button type="button" id="export-btn" class="secondary-btn">Export CSV</button>
-      </div>
-      <div class="table-wrapper">
-        <table id="results-table">
-          <thead>
-            <tr>
-              <th class="sortable" data-col="idx">#</th>
-              <th class="sortable" data-col="title">Paper Title</th>
-              <th class="sortable" data-col="source">Source</th>
-              <th class="sortable" data-col="type">Type</th>
-              <th class="sortable" data-col="ranking">Ranking</th>
-              <th>DOI</th>
-            </tr>
-          </thead>
-          <tbody id="results-body"></tbody>
-        </table>
-      </div>
+    <section class="result-collapsible" id="results-section" hidden>
+      <details class="result-details" open>
+        <summary class="result-summary">
+          <span class="result-summary-title">Ranking results</span>
+          <span class="result-count" id="result-count"></span>
+          <button type="button" id="export-btn" class="secondary-btn small-btn">Download CSV</button>
+        </summary>
+        <div class="table-wrapper">
+          <table id="results-table">
+            <thead>
+              <tr>
+                <th class="sortable" data-col="idx">#</th>
+                <th class="sortable" data-col="title">Paper Title</th>
+                <th class="sortable" data-col="source">Source</th>
+                <th class="sortable" data-col="type">Type</th>
+                <th class="sortable" data-col="ranking">Ranking</th>
+                <th>DOI</th>
+              </tr>
+            </thead>
+            <tbody id="results-body"></tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+
+    <section class="result-collapsible" id="metadata-section" hidden>
+      <details class="result-details" open>
+        <summary class="result-summary">
+          <span class="result-summary-title">Bibliographic sheet</span>
+          <span class="result-count" id="metadata-count"></span>
+          <button type="button" id="metadata-export-btn" class="secondary-btn small-btn">Download CSV (Excel)</button>
+        </summary>
+        <div class="table-wrapper">
+          <table id="metadata-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Title</th>
+                <th>Abstract</th>
+                <th>Year</th>
+                <th>Publisher</th>
+                <th>Ranking</th>
+                <th>Citations</th>
+                <th>DOI</th>
+              </tr>
+            </thead>
+            <tbody id="metadata-body"></tbody>
+          </table>
+        </div>
+      </details>
     </section>
   </main>
 
@@ -91,6 +124,6 @@
     </p>
   </footer>
 
-  <script src="js/app.js?v=9"></script>
+  <script src="js/app.js?v=10"></script>
 </body>
 </html>

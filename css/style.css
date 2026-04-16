@@ -285,28 +285,120 @@ textarea:focus {
   text-align: center;
 }
 
-/* Results */
+/* Results — collapsible blocks */
 
-.results-section {
+.result-collapsible {
   margin-top: 2rem;
 }
 
-.results-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
+.result-details {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
 }
 
-.results-header h2 {
-  font-size: 1.25rem;
+.result-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+  list-style: none;
+  user-select: none;
+}
+
+.result-summary::-webkit-details-marker { display: none; }
+
+.result-details[open] .result-summary {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.result-details:not([open]) .result-summary {
+  border-bottom: none;
+}
+
+.result-summary::before {
+  content: "▶";
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.result-details[open] .result-summary::before {
+  transform: rotate(90deg);
+}
+
+.result-summary-title {
+  font-size: 1.05rem;
   font-weight: 600;
+  color: var(--color-text);
 }
 
 .result-count {
   font-weight: 400;
   color: var(--color-text-muted);
   font-size: 0.9rem;
+}
+
+.result-summary .small-btn {
+  margin-left: auto;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+/* Abstract cell */
+
+.abstract-cell {
+  max-width: 360px;
+}
+
+.abstract-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+
+.abstract-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--color-text);
+}
+
+.abstract-text.is-expanded {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+
+.see-more-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.8rem;
+  color: var(--color-primary);
+  cursor: pointer;
+  text-decoration: underline;
+  font-family: var(--font);
+}
+
+.see-more-btn:hover {
+  color: var(--color-primary-hover);
+}
+
+/* secondary-btn disabled state */
+.secondary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .table-wrapper {

@@ -11,12 +11,14 @@
   const CROSSREF_MAILTO = "pranker-tool@users.noreply.github.com";
   const MAX_CONCURRENT = 5;
   const REQUEST_TIMEOUT = 15000;
+  const ABSTRACT_CLIP_LENGTH = 180;
 
   // ---- State ----
 
   let scimagoData = null;
   let coreData = null;
   let results = [];
+  let metadataResults = [];
   let sortCol = null;
   let sortDir = "asc";
 
@@ -28,6 +30,7 @@
   const fileNameDisplay = document.getElementById("file-name");
   const browseBtn = document.getElementById("browse-btn");
   const rankBtn = document.getElementById("rank-btn");
+  const metadataBtn = document.getElementById("metadata-btn");
   const clearBtn = document.getElementById("clear-btn");
   const progressSection = document.getElementById("progress-section");
   const progressFill = document.getElementById("progress-fill");
@@ -36,6 +39,10 @@
   const resultCount = document.getElementById("result-count");
   const resultsBody = document.getElementById("results-body");
   const exportBtn = document.getElementById("export-btn");
+  const metadataSection = document.getElementById("metadata-section");
+  const metadataCount = document.getElementById("metadata-count");
+  const metadataBody = document.getElementById("metadata-body");
+  const metadataExportBtn = document.getElementById("metadata-export-btn");
   const tabBtns = document.querySelectorAll(".tab-btn");
   const tabContents = document.querySelectorAll(".tab-content");
 
@@ -105,8 +112,11 @@
     });
 
     rankBtn.addEventListener("click", handleRank);
+    metadataBtn.addEventListener("click", handleMetadataSheet);
     clearBtn.addEventListener("click", handleClear);
     exportBtn.addEventListener("click", handleExport);
+    metadataExportBtn.addEventListener("click", handleMetadataExport);
+    metadataBody.addEventListener("click", onMetadataTableClick);
 
     document.querySelectorAll("th.sortable").forEach((th) => {
       th.addEventListener("click", () => handleSort(th.dataset.col));
@@ -142,6 +152,7 @@
       hasDois = csvFileInput.files.length > 0;
     }
     rankBtn.disabled = !hasDois;
+    metadataBtn.disabled = !hasDois;
   }
 
   // ---- DOI Parsing ----
@@ -226,7 +237,21 @@
     }
   }
 
-  async function resolveDOI(doi) {
+  function stripJats(raw) {
+    if (!raw) return "";
+    return raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  function yearFromWork(work) {
+    const dp = (src) => src && src["date-parts"] && src["date-parts"][0];
+    const y =
+      (dp(work["published-print"]) || [])[0] ||
+      (dp(work["published-online"]) || [])[0] ||
+      (dp(work.created) || [])[0];
+    return y != null ? y : "";
+  }
+
+  async function fetchWorkByDoi(doi) {
     const url = `${CROSSREF_API}${encodeURIComponent(doi)}?mailto=${CROSSREF_MAILTO}`;
     try {
       const resp = await fetchWithTimeout(url, REQUEST_TIMEOUT);
@@ -237,16 +262,20 @@
       const work = data.message;
       return {
         doi,
-        title:
-          (work.title && work.title[0]) || "Unknown Title",
-        source:
-          (work["container-title"] && work["container-title"][0]) || "",
+        title: (work.title && work.title[0]) || "Unknown Title",
+        source: (work["container-title"] && work["container-title"][0]) || "",
         issn: work.ISSN || [],
         type: work.type || "",
         authors: (work.author || [])
           .map((a) => [a.given, a.family].filter(Boolean).join(" "))
           .slice(0, 3)
           .join(", "),
+        abstract: stripJats(work.abstract || ""),
+        year: yearFromWork(work),
+        publisher: work.publisher || work["publisher-name"] || "",
+        citations: typeof work["is-referenced-by-count"] === "number"
+          ? work["is-referenced-by-count"]
+          : (Number(work["is-referenced-by-count"]) || 0),
       };
     } catch (err) {
       if (err.name === "AbortError") {
@@ -406,13 +435,13 @@
 
   async function handleRank() {
     const unique = await getDoisFromActiveTab();
-
     if (!unique.length) {
       alert("No valid DOIs found. Please check your input.");
       return;
     }
 
     rankBtn.disabled = true;
+    metadataBtn.disabled = true;
     progressSection.hidden = false;
     resultsSection.hidden = true;
     results = [];
@@ -421,10 +450,10 @@
     const total = unique.length;
 
     const tasks = unique.map((doi) => async () => {
-      const paper = await resolveDOI(doi);
+      const paper = await fetchWorkByDoi(doi);
       const ranking = determineRanking(paper);
       completed++;
-      updateProgress(completed, total);
+      setProgress(completed, total, "Resolving DOIs");
       return { ...paper, ...ranking };
     });
 
@@ -436,13 +465,49 @@
     sortCol = null;
     renderTable();
     rankBtn.disabled = false;
+    metadataBtn.disabled = false;
     updateRankBtnState();
   }
 
-  function updateProgress(done, total) {
+  async function handleMetadataSheet() {
+    const unique = await getDoisFromActiveTab();
+    if (!unique.length) {
+      alert("No valid DOIs found. Please check your input.");
+      return;
+    }
+
+    rankBtn.disabled = true;
+    metadataBtn.disabled = true;
+    progressSection.hidden = false;
+    metadataSection.hidden = true;
+    metadataResults = [];
+
+    let completed = 0;
+    const total = unique.length;
+
+    const tasks = unique.map((doi) => async () => {
+      const paper = await fetchWorkByDoi(doi);
+      const ranking = determineRanking(paper);
+      completed++;
+      setProgress(completed, total, "Fetching metadata");
+      return { ...paper, ...ranking };
+    });
+
+    metadataResults = await runWithConcurrency(tasks, MAX_CONCURRENT);
+
+    progressSection.hidden = true;
+    metadataSection.hidden = false;
+    metadataCount.textContent = `(${metadataResults.length} papers)`;
+    renderMetadataTable();
+    rankBtn.disabled = false;
+    metadataBtn.disabled = false;
+    updateRankBtnState();
+  }
+
+  function setProgress(done, total, label) {
     const pct = Math.round((done / total) * 100);
     progressFill.style.width = `${pct}%`;
-    progressText.textContent = `Resolving DOIs... ${done}/${total}`;
+    progressText.textContent = `${label}… ${done}/${total}`;
   }
 
   // ---- Rendering ----
@@ -496,6 +561,47 @@
       `;
       resultsBody.appendChild(tr);
     });
+  }
+
+  function renderMetadataTable() {
+    metadataBody.innerHTML = "";
+    metadataResults.forEach((r, i) => {
+      const tr = document.createElement("tr");
+      const doiLink = `https://doi.org/${encodeURIComponent(r.doi)}`;
+      const displayRanking = r.ranking || "Not Ranked";
+      const systemLabel = r.system && r.system !== "-" ? ` (${r.system})` : "";
+      const abstract = r.abstract || "";
+      const needsClip = abstract.length > ABSTRACT_CLIP_LENGTH;
+      const yearStr = r.year !== "" && r.year != null ? String(r.year) : "—";
+      const pubStr = (r.publisher || r.source || "—");
+      const citeStr = typeof r.citations === "number" ? String(r.citations) : "—";
+
+      tr.innerHTML = `
+        <td>${i + 1}</td>
+        <td class="title-cell">${escapeHtml(r.title || r.doi)}</td>
+        <td class="abstract-cell">
+          <div class="abstract-wrap">
+            <div class="abstract-text${needsClip ? "" : " is-expanded"}">${escapeHtml(abstract) || "<em style='color:var(--color-text-muted)'>No abstract available</em>"}</div>
+            ${needsClip ? '<button type="button" class="see-more-btn">see more</button>' : ""}
+          </div>
+        </td>
+        <td>${escapeHtml(yearStr)}</td>
+        <td>${escapeHtml(pubStr)}</td>
+        <td><span class="badge ${getBadgeClass(displayRanking)}">${escapeHtml(displayRanking)}</span>${systemLabel}</td>
+        <td>${escapeHtml(citeStr)}</td>
+        <td class="doi-cell"><a href="${doiLink}" target="_blank" rel="noopener">${escapeHtml(r.doi)}</a></td>
+      `;
+      metadataBody.appendChild(tr);
+    });
+  }
+
+  function onMetadataTableClick(e) {
+    const btn = e.target.closest(".see-more-btn");
+    if (!btn) return;
+    const wrap = btn.closest(".abstract-wrap");
+    const textEl = wrap.querySelector(".abstract-text");
+    const expanded = textEl.classList.toggle("is-expanded");
+    btn.textContent = expanded ? "see less" : "see more";
   }
 
   // ---- Sorting ----
@@ -560,24 +666,55 @@
   function handleExport() {
     if (!results.length) return;
 
-    const headers = ["#", "DOI", "Paper Title", "Source", "Type", "Ranking", "System"];
+    const BOM = "\uFEFF";
+    const headers = ["#", "Title", "Source", "Type", "Ranking", "System", "DOI"];
     const rows = results.map((r, i) => [
       i + 1,
-      r.doi,
-      `"${(r.title || "").replace(/"/g, '""')}"`,
-      `"${(r.source || "").replace(/"/g, '""')}"`,
+      csvCell(r.title || ""),
+      csvCell(r.source || ""),
       getTypeLabel(r.type),
       r.ranking || "Not Ranked",
       r.system || "-",
-    ]);
+      csvCell(r.doi),
+    ].join(","));
 
-    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const csv = BOM + [headers.join(","), ...rows].join("\n");
+    triggerDownload(csv, `pranker-results-${new Date().toISOString().slice(0, 10)}.csv`);
+  }
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  function handleMetadataExport() {
+    if (!metadataResults.length) return;
+
+    const BOM = "\uFEFF";
+    const headers = ["Title", "Abstract", "Year", "Publisher", "Ranking", "Citations", "DOI"];
+    const rows = metadataResults.map((r) => {
+      const rankStr = (r.ranking || "Not Ranked") +
+        (r.system && r.system !== "-" ? ` (${r.system})` : "");
+      return [
+        csvCell(r.title || ""),
+        csvCell(r.abstract || ""),
+        r.year !== "" && r.year != null ? r.year : "",
+        csvCell(r.publisher || r.source || ""),
+        csvCell(rankStr),
+        typeof r.citations === "number" ? r.citations : "",
+        csvCell(r.doi),
+      ].join(",");
+    });
+
+    const csv = BOM + [headers.join(","), ...rows].join("\n");
+    triggerDownload(csv, `abstracts-${new Date().toISOString().slice(0, 10)}.csv`);
+  }
+
+  function csvCell(val) {
+    return `"${String(val ?? "").replace(/"/g, '""')}"`;
+  }
+
+  function triggerDownload(content, filename) {
+    const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `pranker-results-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -590,8 +727,11 @@
     fileNameDisplay.textContent = "";
     progressSection.hidden = true;
     resultsSection.hidden = true;
+    metadataSection.hidden = true;
     results = [];
+    metadataResults = [];
     resultsBody.innerHTML = "";
+    metadataBody.innerHTML = "";
     updateRankBtnState();
   }
 
