@@ -152,14 +152,13 @@
 
 Research topic: "${query}"
 
-Respond with a single JSON object (no markdown, no explanation) with exactly these two fields:
+List the academic conferences and journals that are directly relevant to this topic.
+Respond with a single JSON object (no markdown, no explanation):
 {
-  "acronyms": ["ICRA", "IROS", ...],
-  "keywords": ["robot", "autonomous", "manipulation", ...]
+  "acronyms": ["ICRA", "IROS", "HRI", ...]
 }
 
-"acronyms": the 2–3 most directly relevant and well-known conference acronyms for this topic only. Only include real academic venues you are highly confident about.
-"keywords": 8–12 specific search terms and sub-fields to find more related venues by title matching. Keep them precise — avoid overly generic words.`;
+Return 5–15 real academic venue acronyms. Only include venues that are clearly and directly about this topic. Do not include tangentially related venues.`;
 
   async function callLlm(query) {
     const s = loadAiSettings();
@@ -217,9 +216,7 @@ Respond with a single JSON object (no markdown, no explanation) with exactly the
   }
 
   function parseAiResponse(text) {
-    // Strip markdown code fences if present
     const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-    // Find the first { ... } block
     const match = cleaned.match(/\{[\s\S]*\}/);
     if (!match) return null;
     try {
@@ -227,9 +224,6 @@ Respond with a single JSON object (no markdown, no explanation) with exactly the
       return {
         acronyms: Array.isArray(obj.acronyms)
           ? obj.acronyms.map((a) => String(a).toUpperCase().trim()).filter(Boolean)
-          : [],
-        keywords: Array.isArray(obj.keywords)
-          ? obj.keywords.map((k) => String(k).toLowerCase().trim()).filter(Boolean)
           : [],
       };
     } catch { return null; }
@@ -433,20 +427,26 @@ Respond with a single JSON object (no markdown, no explanation) with exactly the
     setProgress(40, "Searching venues…");
     await tick();
 
-    // Merge LLM keywords with user keywords for keyword search
     const userKeywords = parseKeywords(rawQuery);
-    const allKeywords = aiSuggestions
-      ? [...new Set([...userKeywords, ...aiSuggestions.keywords.flatMap(parseKeywords)])]
-      : userKeywords;
+    const aiAcronyms = aiSuggestions?.acronyms || [];
 
-    venueResults = searchVenues(
-      allKeywords, coreRanks, scimagoRanks, types, aiSuggestions?.acronyms || []
-    );
+    // Step 1: keyword search against local data using the user's exact query
+    const kwResults = searchVenues(userKeywords, coreRanks, scimagoRanks, types, []);
+
+    // Step 2: look up AI-suggested acronyms in local data;
+    //         append only those not already found by keyword search
+    const foundAcronyms = new Set(kwResults.map((v) => v.acronym.toUpperCase()));
+    const aiOnlyAcronyms = aiAcronyms.filter((a) => !foundAcronyms.has(a.toUpperCase()));
+    const aiExtra = aiOnlyAcronyms.length > 0
+      ? searchVenues([], coreRanks, scimagoRanks, types, aiOnlyAcronyms)
+      : [];
+
+    venueResults = [...kwResults, ...aiExtra];
 
     setProgress(75, "Matching deadlines…");
     await tick();
 
-    deadlineResults = matchDeadlines(venueResults, allKeywords);
+    deadlineResults = matchDeadlines(venueResults, userKeywords);
 
     setProgress(100, "Done");
     await tick();
