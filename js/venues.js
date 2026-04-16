@@ -158,8 +158,8 @@ Respond with a single JSON object (no markdown, no explanation) with exactly the
   "keywords": ["robot", "autonomous", "manipulation", ...]
 }
 
-"acronyms": 10–25 conference or journal acronyms that are directly relevant to this topic. Include both well-known and specialised venues. Only include real academic venues.
-"keywords": 15–30 search terms, synonyms, sub-fields and related concepts to maximise recall when searching venue titles.`;
+"acronyms": the 2–3 most directly relevant and well-known conference acronyms for this topic only. Only include real academic venues you are highly confident about.
+"keywords": 8–12 specific search terms and sub-fields to find more related venues by title matching. Keep them precise — avoid overly generic words.`;
 
   async function callLlm(query) {
     const s = loadAiSettings();
