@@ -17,7 +17,17 @@
   const CURRENT_YEAR = TODAY.getFullYear();
   const NEXT_YEAR = CURRENT_YEAR + 1;
   const MAX_VENUE_RESULTS = 200;
-  const MIN_KW_LENGTH = 3;
+  const MIN_KW_LENGTH = 2;
+
+  // Words so common in venue names they add no signal for matching
+  const VENUE_STOP_WORDS = new Set([
+    "the", "and", "for", "with", "from", "that", "this", "are", "was",
+    "its", "has", "not", "but", "all", "can", "will", "may", "such",
+    "on", "in", "of", "to", "a", "an", "at", "by", "or", "via",
+    "international", "national", "conference", "workshop", "symposium",
+    "proceedings", "annual", "journal", "transactions", "letters",
+    "ieee", "acm", "advances", "research", "studies", "science",
+  ]);
 
   // ---- State ----
 
@@ -108,7 +118,79 @@
       topicInput.value.trim().length === 0 || (!coreData && !scimagoData);
   }
 
-  // ---- Keyword helpers ----
+  // ---- Search engine: stemming + prefix matching ----
+
+  /**
+   * Light suffix-stripping stemmer.
+   * Goal: map inflected/derived forms to a shared root so "robotics",
+   * "robotic", "robots" all reduce to "robot".
+   */
+  function stem(w) {
+    if (w.length <= 4) return w;
+    // Rules are tried in order; first match wins.
+    // Each rule: [regex, replacement]. Only applied when result length >= 4.
+    const rules = [
+      [/ications?$/, "ify"],
+      [/ations?$/, "ate"],
+      [/nesses?$/, ""],
+      [/ments?$/, ""],
+      [/ings?$/, ""],
+      [/ical(ly)?$/, ""],
+      [/ics?$/, ""],
+      [/ities$/, ""],
+      [/ity$/, ""],
+      [/ious$/, ""],
+      [/ous$/, ""],
+      [/ive$/, ""],
+      [/ize$/, ""],
+      [/ise$/, ""],
+      [/tions?$/, "te"],
+      [/al(ly)?$/, ""],
+      [/ers?$/, ""],
+      [/ies$/, "y"],
+      [/es$/, ""],
+      [/ed$/, ""],
+      [/s$/, ""],
+    ];
+    for (const [re, rep] of rules) {
+      const m = w.match(re);
+      if (m) {
+        const base = w.slice(0, w.length - m[0].length) + rep;
+        if (base.length >= 4) return base;
+      }
+    }
+    return w;
+  }
+
+  /** Tokenise text, drop stop-words, return stemmed set */
+  function titleTokens(text) {
+    const words = ((text || "").toLowerCase().match(/[a-z]+/g) || []);
+    const out = new Set();
+    for (const w of words) {
+      if (w.length < 2 || VENUE_STOP_WORDS.has(w)) continue;
+      out.add(stem(w));
+      out.add(w); // keep unstemmed form too for exact matches
+    }
+    return out;
+  }
+
+  /** Check whether a (stemmed) keyword matches any token in a token set */
+  function kwHits(stemmedKw, tokens) {
+    if (tokens.has(stemmedKw)) return true;
+    // Prefix match handles cases the stemmer misses:
+    // "robotics"→"robot" matches "robots" or vice-versa
+    const kLen = stemmedKw.length;
+    for (const t of tokens) {
+      const minLen = Math.min(kLen, t.length);
+      if (minLen < 5) continue;
+      if (t.startsWith(stemmedKw) || stemmedKw.startsWith(t)) return true;
+      // Shared-prefix fallback (≥5 chars, ≥85 % of shorter word)
+      let p = 0;
+      while (p < minLen && stemmedKw[p] === t[p]) p++;
+      if (p >= 5 && p >= minLen * 0.85) return true;
+    }
+    return false;
+  }
 
   function parseKeywords(text) {
     return [
@@ -122,12 +204,14 @@
     ];
   }
 
+  /**
+   * Score how well a set of keyword strings matches a list of text fields.
+   * Returns the number of distinct keywords that hit at least one token.
+   */
   function scoreMatch(keywords, texts) {
-    const combined = texts
-      .map((t) => (t || "").toLowerCase())
-      .join(" ");
+    const tokens = new Set(texts.flatMap((t) => [...titleTokens(t)]));
     return keywords.reduce(
-      (score, kw) => score + (combined.includes(kw) ? 1 : 0),
+      (score, kw) => score + (kwHits(stem(kw), tokens) ? 1 : 0),
       0
     );
   }
