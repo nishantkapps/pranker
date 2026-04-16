@@ -458,35 +458,81 @@
     // Step 1: local search with semantic keywords against name + DBLP topics
     const kwResults = searchVenues(searchKeywords, coreRanks, scimagoRanks, types, [], 30);
 
-    // Step 2: for each AI-suggested venue not already found, look it up in local data
-    //   - found locally  → append with correct CORE/SCImago ranking + AI badge
-    //   - not found      → append as AI-only entry ("?" ranking) with DBLP link
+    // Step 2: for each AI-suggested venue not already found, look it up in local data.
+    // Check order: CORE by acronym → CORE by title → SCImago by title → AI-only
     const foundAcronyms = new Set(kwResults.map((v) => v.acronym.toUpperCase()));
     const aiExtra = [];
+
+    const normTitle = (s) => (s || "").toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
+
     for (const { acronym, name } of aiVenueSuggestions) {
       if (foundAcronyms.has(acronym)) continue;
-      const entry = coreData?.by_acronym?.[acronym];
-      if (entry) {
-        if (coreRanks.length && !coreRanks.includes(entry.r)) continue;
-        const portalLink = entry.id
-          ? `https://portal.core.edu.au/conf-ranks/${entry.id}/`
+
+      // 1. CORE conference by acronym
+      const coreEntry = coreData?.by_acronym?.[acronym];
+      if (coreEntry) {
+        if (coreRanks.length && !coreRanks.includes(coreEntry.r)) { foundAcronyms.add(acronym); continue; }
+        const portalLink = coreEntry.id
+          ? `https://portal.core.edu.au/conf-ranks/${coreEntry.id}/`
           : `https://portal.core.edu.au/conf-ranks/?search=${encodeURIComponent(acronym)}&by=acronym`;
         aiExtra.push({
-          acronym, title: entry.t, ranking: entry.r,
+          acronym, title: coreEntry.t, ranking: coreEntry.r,
           system: "CORE", type: "Conference",
-          link: portalLink, dblpUrl: entry.dblp || null,
+          link: portalLink, dblpUrl: coreEntry.dblp || null,
           score: 0, aiSuggested: true,
         });
-      } else {
-        // Not in local data — show with DBLP search link
-        const dblpSearch = `https://dblp.org/search?q=${encodeURIComponent(name || acronym)}`;
-        aiExtra.push({
-          acronym, title: name || acronym, ranking: "?",
-          system: "AI", type: "Conference",
-          link: dblpSearch, dblpUrl: null,
-          score: 0, aiSuggested: true,
-        });
+        foundAcronyms.add(acronym);
+        continue;
       }
+
+      // 2. CORE conference by full name
+      if (name && coreData?.by_title) {
+        const coreByTitle = coreData.by_title[normTitle(name)];
+        if (coreByTitle) {
+          const acr2 = coreByTitle.a || acronym;
+          const coreEntry2 = coreData.by_acronym[acr2] || {};
+          if (!coreRanks.length || coreRanks.includes(coreByTitle.r)) {
+            const portalLink = coreEntry2.id
+              ? `https://portal.core.edu.au/conf-ranks/${coreEntry2.id}/`
+              : `https://portal.core.edu.au/conf-ranks/?search=${encodeURIComponent(acr2)}&by=acronym`;
+            aiExtra.push({
+              acronym: acr2 || acronym, title: name, ranking: coreByTitle.r,
+              system: "CORE", type: "Conference",
+              link: portalLink, dblpUrl: coreEntry2.dblp || null,
+              score: 0, aiSuggested: true,
+            });
+            foundAcronyms.add(acronym);
+            continue;
+          }
+        }
+      }
+
+      // 3. SCImago journal by full name
+      if (name && scimagoData?.by_title) {
+        const sciEntry = scimagoData.by_title[normTitle(name)];
+        if (sciEntry) {
+          if (!scimagoRanks.length || scimagoRanks.includes(sciEntry.q)) {
+            const issn = sciEntry.i || "";
+            aiExtra.push({
+              acronym, title: name, ranking: sciEntry.q,
+              system: "SCImago", type: "Journal",
+              link: `https://www.scimagojr.com/journalsearch.php?q=${encodeURIComponent(name)}`,
+              dblpUrl: null, score: 0, aiSuggested: true,
+            });
+            foundAcronyms.add(acronym);
+            continue;
+          }
+        }
+      }
+
+      // 4. Not found in local data — show with DBLP search link
+      const dblpSearch = `https://dblp.org/search?q=${encodeURIComponent(name || acronym)}`;
+      aiExtra.push({
+        acronym, title: name || acronym, ranking: "?",
+        system: "AI", type: "Conference",
+        link: dblpSearch, dblpUrl: null,
+        score: 0, aiSuggested: true,
+      });
       foundAcronyms.add(acronym);
     }
 
