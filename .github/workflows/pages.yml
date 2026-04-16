@@ -39,6 +39,7 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html _site/
+          cp venues.html _site/
           cp -r css js data _site/
 
       - name: Configure GitHub Pages
