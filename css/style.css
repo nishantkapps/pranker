@@ -392,6 +392,21 @@ td.title-cell {
   max-width: 260px;
 }
 
+td.desc-cell {
+  max-width: 300px;
+}
+
+.desc-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  cursor: help;
+}
+
 .clamp-wrap {
   display: flex;
   flex-direction: column;

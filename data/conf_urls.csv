@@ -1,0 +1,171 @@
+﻿acronym,title,rank,url,source
+AAAI,National Conference of the American Association for Artificial Intelligence,A*,https://aaai.org/conference/aaai/aaai-25/,aideadlines
+ACL,Association for Computational Linguistics,A*,https://2024.aclweb.org/,aideadlines
+ACMMM,ACM Multimedia,A*,https://www.acmmm.org/index.html,ddg
+ASE,Automated Software Engineering Conference,A*,https://www.asecho.org/education-events/scientific-sessions/registration/,ddg
+ASPLOS,Architectural Support for Programming Languages and Operating Systems,A*,https://www.asplos-conference.org/,ddg
+CAV,Computer Aided Verification,A*,http://conferences.i-cav.org/2026/cfp/,ddg
+CCS,ACM Conference on Computer and Communications Security,A*,https://www.sigsac.org/ccs/CCS2025/call-for-papers/,ddg
+CHI,International Conference on Human Factors in Computing Systems,A*,https://chi2025.acm.org/,aideadlines
+COLT,Conference on Learning Theory,A*,http://www.learningtheory.org/colt2020/,aideadlines
+CRYPTO,Advances in Cryptology,A*,https://events.coinpedia.org/,ddg
+CVPR,IEEE Conference on Computer Vision and Pattern Recognition,A*,https://cvpr.thecvf.com/Conferences/2025,aideadlines
+DAC,Design Automation Conf,A*,https://dac.com/2026/attend/attend-dac,ddg
+EC,ACM Conference on Economics and Computation,A*,https://www.sigecom.org/ec19/,ddg
+ECCV,European Conference on Computer Vision,A*,https://eccv2024.ecva.net/,aideadlines
+EMNLP,Empirical Methods in Natural Language Processing,A*,https://2024.emnlp.org/,aideadlines
+EUROCRYPT,International Conference on the Theory and Application of Cryptographic Techniques,A*,https://eurocrypt.iacr.org/2025/,ddg
+FOCS,IEEE Symposium on Foundations of Computer Science,A*,https://ieee-focs.org/,ddg
+FSE,"ACM International Conference on the Foundations of Software Engineering (was ESEC/FSE, changed 2024; duplicate previously listed as ESEC, removed from DB)",A*,https://conf.researchr.org/home/fse-2026,ddg
+HPCA,International Symposium on High Performance Computer Architecture,A*,https://www.myhuiban.com/conference/321,ddg
+HRI,ACM/IEEE International Conference on Human-Robot Interaction,A*,https://humanrobotinteraction.org/2024/,aideadlines
+ICALP,International Colloquium on Automata Languages and Programming,A*,https://conferences.au.dk/icalp2025,ddg
+ICAPS,International Conference on Automated Planning and Scheduling,A*,https://icaps24.icaps-conference.org/,aideadlines
+ICCV,IEEE International Conference on Computer Vision,A*,http://iccv2023.thecvf.com/,aideadlines
+ICDE,International Conference on Data Engineering,A*,https://icde.org/,ddg
+ICDM,IEEE International Conference on Data Mining,A*,https://www.cloud-conf.net/icdm2023/,aideadlines
+ICLR,International Conference on Learning Representations,A*,https://iclr.cc/Conferences/2025/CallForPapers,aideadlines
+ICML,International Conference on Machine Learning,A*,https://icml.cc/Conferences/2024,aideadlines
+ICRA,IEEE International Conference on Robotics and Automation,A*,https://2025.ieee-icra.org,aideadlines
+ICSE,International Conference on Software Engineering,A*,https://conf.researchr.org/home/icse-2026,ddg
+IJCAI,International Joint Conference on Artificial Intelligence,A*,https://ijcai24.org/,aideadlines
+INFOCOM,IEEE International Conference on Computer Communications,A*,http://infocom2025.ieee-infocom.org/,ddg
+ISCA,ACM International Symposium on Computer Architecture,A*,https://iscaconf.org/,ddg
+ISMAR,IEEE/ACM International Symposium on Mixed and Augmented Reality,A*,https://www.ismar.net/,ddg
+KDD,ACM International Conference on Knowledge Discovery and Data Mining,A*,https://kdd2024.kdd.org/,aideadlines
+KR,International Conference on the Principles of Knowledge Representation and Reasoning,A*,https://kr.org/KR2024/,aideadlines
+LICS,IEEE Symposium on Logic in Computer Science,A*,https://lics.siglog.org/,ddg
+MICRO,International Symposium on Microarchitecture,A*,https://www.micro.infini.fr/,ddg
+MOBICOM,ACM International Conference on Mobile Computing and Networking,A*,https://www.myhuiban.com/conference/104?lang=en_us,ddg
+NDSS,Usenix Network and Distributed System Security Symposium,A*,https://www.ndss-symposium.org/,ddg
+NEURIPS,Advances in Neural Information Processing Systems (was NIPS),A*,https://nips.cc/Conferences/2024,aideadlines
+OSDI,Usenix Symposium on Operating Systems Design and Implementation,A*,https://www.usenix.org/conference/osdi26,ddg
+PERCOM,IEEE International Conference on Pervasive Computing and Communications,A*,https://cs-tccc.org/supports/percom/,ddg
+PLDI,ACM-SIGPLAN Conference on Programming Language Design and Implementation,A*,https://pldi25.sigplan.org/series/pldi,ddg
+PODC,ACM Symposium on Principles of Distributed Computing,A*,https://research.com/conference/podc-2021-principles-of-distributed-computing,ddg
+PODS,ACM SIGMOD-SIGACT-SIGART Conference on Principles of Database Systems,A*,https://sigmod.org/pods-home/,ddg
+POPL,ACM-SIGACT Symposium on Principles of Programming Languages,A*,https://conf.researchr.org/home/POPL-2026,ddg
+SIGCOMM,"ACM Conference on Applications, Technologies, Architectures, and Protocols for Computer Communication",A*,https://conferences.sigcomm.org/sigcomm/2025/cfp/,ddg
+SIGGRAPH,ACM SIG International Conference on Computer Graphics and Interactive Techniques,A*,https://s2024.siggraph.org/,aideadlines
+SIGGRAPHA,SIGGRAPH Asia,A*,https://researchr.org/conference/siggrapha-2024,ddg
+SIGIR,ACM International Conference on Research and Development in Information Retrieval,A*,https://sigir-2024.github.io,aideadlines
+SIGMETRICS,Measurement and Modeling of Computer Systems,A*,https://www.sigmetrics.org/,ddg
+SIGMOD,ACM Special Interest Group on Management of Data Conference,A*,https://sigmod.org/conferences/,ddg
+SOCG,International Symposium on Computational Geometry,A*,https://socg26.hotcrp.com/,ddg
+SODA,ACM/SIAM Symposium on Discrete Algorithms,A*,https://soda25.hotcrp.com/,ddg
+SOSP,ACM SIGOPS Symposium on Operating Systems Principles,A*,https://sosp.org/,ddg
+SP,IEEE Symposium on Security and Privacy,A*,https://sp-foundation.org/file_download/ee338195-ec7e-4b50-981b-3b230576ddb0,ddg
+STOC,ACM Symposium on Theory of Computing,A*,https://acm-stoc.org/,ddg
+UIST,ACM Symposium on User Interface Software and Technology,A*,https://uist.acm.org/2026/,ddg
+USENIX-SECURITY,Usenix Security Symposium,A*,https://www.usenix.org/conferences/byname,ddg
+VLDB,International Conference on Very Large Databases,A*,https://vldb.org/2025/,ddg
+VR,IEEE Conference on Virtual Reality and 3D User Interfaces,A*,https://waset.org/virtual-reality-vr-conferences,ddg
+WWW,International World Wide Web Conference,A*,https://www2023.thewebconf.org/,aideadlines
+AAMAS,"International Joint Conference on Autonomous Agents and Multiagent Systems (previously the International Conference on Multiagent Systems, ICMAS, changed in 2000)",A,https://aamas2025.org/,aideadlines
+ACSAC,Annual Computer Security Applications Conference,A,https://www.acsac11.org/,ddg
+AIED,International Conference on Artificial Intelligence in Education,A,https://aied2025.itd.cnr.it/,ddg
+AISTATS,International Conference on Artificial Intelligence and Statistics,A,https://aistats.org/aistats2025/index.html,aideadlines
+ALENEX,Workshop on Algorithm Engineering and Experiments,A,https://www.myhuiban.com/conference/980?lang=en_us,ddg
+APPROX/RANDOM,International Workshop on Approximation Algorithms for Combinatorial Optimization Problems and International Conference on Randomization and Computation,A,https://research.com/conference/international-conference-on-approximation-algorithms-for-combinatorial-optimization-problems-1,ddg
+ASIACCS,"Asia Conference on Information, Computer and Communications Security",A,https://asiaccs2025.hust.edu.vn/,ddg
+ASIACRYPT,International Conference on the Theory and Application of Cryptology and Information Security,A,https://www.iacr.org/meetings/asiacrypt/,ddg
+ASSETS,International ACM SIGACCESS Conference on Computers and Accessibility,A,https://assets-conference.github.io/assets2024/,ddg
+BMVC,British Machine Vision Conference,A,https://bmvc2024.org/,aideadlines
+BPM,International Conference in Business Process Management,A,https://bpm-conference.org/,ddg
+CADE,International Conference on Automated Deduction,A,https://cadeinc.org/,ddg
+CAISE,International Conference on Advanced Information Systems Engineering,A,https://caise26.polimi.it/,ddg
+CCC,IEEE Conference on Computational Complexity,A,https://ccc.nlc.org/,ddg
+CGO,International Symposium on Code Generation and Optimization,A,https://2026.cgo.org/,ddg
+CHES,Workshop on Cryptographic Hardware and Embedded Systems,A,https://www.chesontario.com/,ddg
+CIDR,Conference on Innovative Data Systems Research,A,https://www.cidrdb.org/,ddg
+CIKM,ACM International Conference on Information and Knowledge Management,A,https://cikm2024.org/,aideadlines
+CONEXT,ACM International Conference on Emerging Networking Experiments and Technologies,A,https://www.sigcomm.org/events/conext-conference,ddg
+CP,International Conference on Principles and Practice of Constraint Programming,A,https://www.a4cp.org/events/cp-conference-series,ddg
+CSCW,ACM Conference on Computer Supported Cooperative Work,A,https://cscw.acm.org/2024/,aideadlines
+CSF,IEEE Computer Security Foundations Symposium (was CSFW),A,https://csf2024.ieee-security.org/,ddg
+DATE,"Design, Automation and Test in Europe Conference",A,https://www.date-conference.com/information,ddg
+DIS,Designing Interactive Systems,A,https://web.cvent.com/event/8c0d5ec9-5af9-406a-9be9-5d5b78558524/summary,ddg
+DISC,International Symposium on Distributed Computing (was WDAG),A,https://research.com/conference/disc-2021-international-symposium-on-distributed-computing-1,ddg
+DSN,IEEE/IFIP International Conference on Dependable Systems and Networks,A,https://2019.dsn.org/,ddg
+EACL,European Association for Computational Linguistics,A,https://2024.eacl.org/,aideadlines
+EASE,International Conference on Evaluation and Assessment in Software Engineering,A,https://ease.org.uk/,ddg
+ECAI,European Conference on Artificial Intelligence,A,https://www.ecai2024.eu/,aideadlines
+ECIR,European Conference on Information Retrieval,A,https://ecir2025.eu/,aideadlines
+ECML PKDD,European Conference on Machine Learning and Principles and Practice of Knowledge Discovery in Database (PKDD and ECML combined from 2008),A,https://2024.ecmlpkdd.org/,aideadlines
+ECOOP,European Conference on Object-Oriented Programming,A,https://2026.ecoop.org/home/,ddg
+ER,International Conference on Conceptual Modelling,A,https://er2020.big.tuwien.ac.at/,ddg
+ESA,European Symposium on Algorithms,A,https://esa.org/events/,ddg
+ESEM,International Symposium on Empirical Software Engineering and Measurement,A,https://www.esemconference.ae/,ddg
+ESOP,European Symposium on Programming,A,https://www.esopassociation.org/events/national-conference,ddg
+ESORICS,European Symposium On Research In Computer Security,A,https://esorics2025.sciencesconf.org/,ddg
+EUROS&P,IEEE European Symposium on Security and Privacy,A,https://eurosp2025.ieee-security.org/,ddg
+EUROSYS,Eurosys Conference,A,https://2027.eurosys.org/,ddg
+FAST,Conference on File and Storage Technologies,A,https://www.usenix.org/conference/fast25,ddg
+FC,Financial Cryptography and Data Security Conference,A,https://research.com/conference/fc-2021-international-conference-on-financial-cryptography-and-data-security,ddg
+FOGA,Foundations of Genetic Algorithms,A,https://dlnext.acm.org/conference/foga/proceedings?cookieSet=1,ddg
+FPGA,ACM Int'l Symposium on Field Programmable Gate Arrays,A,https://www.fpga-conference.eu/get-tickets,ddg
+GD,Graph Drawing,A,https://blog.general-devices.com/gd-attends-annual-penn-state-ems-conference,ddg
+GECCO,Genetic and Evolutionary Computations,A,https://gecco-2026.sigevo.org/homepage,ddg
+HOTOS,USENIX Workshop on Hot Topics in Operating Systems,A,https://www.sigops.org/s/conferences/hotos/2025/,ddg
+HPDC,ACM International Symposium on High Performance Distributed Computing,A,http://www.hpdc.org/,ddg
+ICCAD,IEEE/ACM International Conference on Computer-Aided Design,A,https://iccad.com/2026/events/iccad-2024,ddg
+ICDAR,IEEE International Conference on Document Analysis and Recognition,A,https://icdar2026.org/,ddg
+ICDCS,International Conference on Distributed Computing Systems,A,https://icdcs2026.icdcs.org/,ddg
+ICDT,International Conference on Database Theory,A,https://sidicdt.org/en/,ddg
+ICER,International Computing Education Research Workshop,A,https://sigcse.org/events/icer/,ddg
+ICFP,International Conference on Functional Programming,A,https://theicfp.org/,ddg
+ICME,IEEE International Conference on Multimedia and Expo,A,https://2021.ieeeicme.org/,aideadlines
+ICPC,"IEEE International Conference on Program Comprehension (previously IWPC, changed in 2006)",A,https://icpc-conference.org/,ddg
+ICS,ACM International Conference on Supercomputing,A,https://www.ics-conference.org/,ddg
+ICSA,International Conference on Software Architecture (was previously WICSA),A,"https://www.icsa-sociology.org/conferences-1/2026-icsa-annual-conference-(aug.-7,-2026)",ddg
+ICSME,"IEEE International Conference on Software Maintenance and Evolution (prior to 2014 was ICSM, IEEE International Conference on Software Maintenance)",A,https://icsme.github.io/,ddg
+ICSOC,International Conference on Service Oriented Computing,A,https://icsoc2025.hit.edu.cn/,ddg
+ICST,"International Conference on Software Testing, Verification and Validation",A,https://conf.researchr.org/home/icst-2025,ddg
+ICWS,IEEE International Conference on Web Services,A,https://services.conferences.computer.org/2026/icws/,ddg
+ICWSM,International Conference on Web and Social Media,A,https://www.icwsm.org/2022/index.html/,aideadlines
+IEEE VIS,IEEE Visualization,A,https://ieeevis.org/year/2025/welcome,ddg
+IJCAR,International Joint Conference on Automated Reasoning,A,https://ijcar.org/,ddg
+IMC,Internet Measurement Conference,A,https://www.indiamobilecongress.com/conference,ddg
+INTERSPEECH,Interspeech (combined EuroSpeech and ICSLP in 2000),A,http://www.interspeech2023.org/,aideadlines
+IPDPS,IEEE International Parallel and Distributed Processing Symposium (was IPPS and SPDP),A,http://www.ipdps.org/index.html,ddg
+IROS,IEEE/RSJ International Conference on Intelligent Robots and Systems,A,https://iros2024-abudhabi.org/,aideadlines
+ISLPED,IEEE/ACM International Symposium on Low Power Electronics and Design,A,https://www.islped.org/2026/,ddg
+ISMB,Intelligent Systems in Molecular Biology,A,https://web.archive.org/web/20250304004320/https://en.wikipedia.org/wiki/Intelligent_Systems_for_Molecular_Biology,ddg
+ISSRE,International Symposium on Software Reliability Engineering,A,https://issre.github.io/2025/,ddg
+ISSTA,International Symposium on Software Testing and Analysis,A,https://conf.researchr.org/home/issta-2025,ddg
+ISWC,International Semantic Web Conference,A,https://iswc2023.semanticweb.org/,aideadlines
+ITC,IEEE International Test Conference,A,https://www.itctestweek.org/,ddg
+ITCS,Innovations in Theoretical Computer Science,A,http://itcs-conf.org/index.html,ddg
+IUI,International Conference on Intelligent User Interfaces,A,https://iui.acm.org/2024/,aideadlines
+LAK,International Conference on Learning Analytics and Knowledge,A,https://www.solaresearch.org/events/lak/,ddg
+MICCAI,Medical Image Computing and Computer-Assisted Intervention,A,https://conferences.miccai.org/2024/en/,aideadlines
+MIDDLEWARE,ACM/IFIP/USENIX International Middleware Conference,A,https://middleware-conf.github.io/2025/,ddg
+MMSYS,ACM Multimedia Systems Conference,A,https://acmmmsys.org/,ddg
+MOBISYS,"ACM SIGMOBILE International Conference on Mobile Systems, Applications and Services",A,https://www.sigmobile.org/mobisys/2026/,ddg
+MODELS,"International Conference on Model Driven Engineering Languages and Systems (Previously UML, changed in 2005)",A,https://research.com/conference/models-22-acmieee-25th-international-conference-on-model-driven-engineering-languages-and-systems26,ddg
+MSR,IEEE International Working Conference on Mining Software Repositories,A,https://2026.msrconf.org/,ddg
+MSWIM,"ACM/IEEE International Conference on Modelling, Analysis and Simulation of Wireless and Mobile Systems",A,https://mswimconf.com/2026/index.html,ddg
+NAACL,North American Association for Computational Linguistics,A,https://2025.naacl.org,aideadlines
+OOPSLA,ACM Conference on Object Oriented Programming Systems Languages and Applications,A,https://2026.splashcon.org/track/oopsla-2026,ddg
+PETS,Privacy Enhancing Technologies Symposium (was International Workshop of Privacy Enhancing Technologies),A,https://petsymposium.org/,ddg
+PPSN,Parallel Problem Solving from Nature,A,https://ppsn2026.disi.unitn.it/,ddg
+RAID,"The International Symposium on Research in Attacks, Intrusions and Defenses (was International Symposium on Recent Advances in Intrusion Detection)",A,https://www.raid.tech/,ddg
+RE,IEEE International Requirements Engineering Conference,A,https://blog.roboflow.com/ai-computer-vision-conferences/,ddg
+RECSYS,ACM International Conference on Recommender Systems,A,https://recsys.acm.org/recsys23/,aideadlines
+RTAS,IEEE Real-Time and Embedded Technology and Applications Symposium,A,https://2026.rtas.org/,ddg
+RTSS,Real Time Systems Symposium,A,https://2025.rtss.org/,ddg
+SANER,"IEEE International Conference on Software Analysis, Evolution and Reengineering",A,https://conf.researchr.org/home/saner-2026,ddg
+SAT,International Conference on Theory and Applications of Satisfiability Testing,A,https://smallsat.org/,ddg
+SC,"International Conference for High Performance Computing, Networking, Storage and Analysis (was Supercomputing Conference)",A,https://www.verkada.com/events/sc-manufacturing-conference-2025/,ddg
+SDM,SIAM International Conference on Data Mining,A,https://www.siam.org/conferences/cm/conference/sdm21,aideadlines
+SEAMS,International Symposium on Software Engineering for Adaptive and Self-Managing Systems,A,https://seams.org/product-category/conferences/,ddg
+SIGCSE,ACM Special Interest Group on Computer Science Education Conference,A,https://sigcse.org/,ddg
+SIGSPATIAL,ACM International Conference on Advances in Geographic Information Systems,A,https://www.sigspatial.org/about/,ddg
+SOUPS,Symposium On Usable Privacy and Security,A,https://soups.page/,ddg
+STACS,International Symposium on Theoretical Aspects of Computer Science,A,https://www.stacs-conf.org/,ddg
+TACAS,Tools and Algorithms for Construction and Analysis of Systems,A,https://tacas.info/,ddg
+UAI,Conference in Uncertainty in Artificial Intelligence,A,https://www.auai.org/uai2024/,aideadlines
+UMAP,"International Conference on User Modelling, Adaptation, and Personalization (was AH and UM)",A,https://www.um.org/conferences,ddg
+USENIX,Usenix Annual Technical Conference,A,https://www.usenix.org/,ddg
+WACV,IEEE Workshop on Applications of Computer Vision,A,https://wacv2025.thecvf.com/,aideadlines
+WSDM,ACM International Conference on Web Search and Data Mining,A,https://www.wsdm-conference.org/2025/,aideadlines

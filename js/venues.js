@@ -597,7 +597,11 @@
         const topicScore = Array.isArray(entry.topics)
           ? scoreMatch(keywords, entry.topics) * 0.5
           : 0;
-        const totalScore = nameScore + topicScore;
+        // description provides rich scope text for matching
+        const descScore = entry.description
+          ? scoreMatch(keywords, [entry.description]) * 0.3
+          : 0;
+        const totalScore = nameScore + topicScore + descScore;
         const aiMatched  = aiAcronymSet.has(acronym.toUpperCase());
         if (totalScore < minScore && !aiMatched) continue;
         const portalLink = entry.id
@@ -611,6 +615,7 @@
           type: "Conference",
           link: portalLink,
           dblpUrl: entry.dblp || null,
+          description: entry.description || "",
           score: totalScore + (aiMatched ? AI_BOOST : 0),
           aiSuggested: aiMatched,
         });
@@ -815,7 +820,7 @@
     venuesBody.innerHTML = "";
     if (!venueResults.length) {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="8" style="text-align:center;color:var(--color-text-muted);padding:1.5rem">No matching venues found. Try broader keywords or relax the ranking filters.</td>`;
+      tr.innerHTML = `<td colspan="9" style="text-align:center;color:var(--color-text-muted);padding:1.5rem">No matching venues found. Try broader keywords or relax the ranking filters.</td>`;
       venuesBody.appendChild(tr);
       return;
     }
@@ -830,6 +835,9 @@
       const aiBadge = v.aiSuggested
         ? `<span class="badge-ai" title="Suggested by AI">AI</span> `
         : "";
+      const descHtml = v.description
+        ? `<span class="desc-clamp" title="${escapeHtml(v.description)}">${escapeHtml(v.description.slice(0, 120))}${v.description.length > 120 ? "…" : ""}</span>`
+        : `<span style="color:var(--color-text-muted)">—</span>`;
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${i + 1}</td>
@@ -840,6 +848,7 @@
           <span class="badge ${getBadgeClass(v.ranking)}">${escapeHtml(v.ranking)}</span>
           <span class="system-label">${escapeHtml(v.system)}</span>
         </td>
+        <td class="desc-cell">${descHtml}</td>
         <td>${escapeHtml(String(nextDate))}</td>
         <td>${escapeHtml(location)}</td>
         <td>${siteLink}</td>
@@ -920,7 +929,7 @@
   function handleVenuesExport() {
     if (!venueResults.length) return;
     const dateMap = buildDateMap();
-    const headers = ["#", "Name", "Acronym", "Type", "Ranking", "System", "Next Date", "Location", "Website", "Ranking Link"];
+    const headers = ["#", "Name", "Acronym", "Type", "Ranking", "System", "Description", "Next Date", "Location", "Website", "Ranking Link"];
     const rows = venueResults.map((v, i) => {
       const info = v.type === "Conference" ? dateMap.get(v.acronym.toUpperCase()) : null;
       return [
@@ -930,6 +939,7 @@
         v.type,
         csvCell(v.ranking),
         v.system,
+        csvCell(v.description || ""),
         csvCell(info ? info.date : ""),
         csvCell(info ? (info.location || "") : ""),
         csvCell(info ? (info.siteLink || "") : ""),
