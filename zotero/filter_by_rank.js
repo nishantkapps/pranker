@@ -23,9 +23,8 @@
  * 2. Open  Tools → Developer → Run JavaScript
  * 3. Paste the ENTIRE contents of this file into the code box.
  * 4. Click  Run  and watch the Output pane for progress.
- *    The line at the bottom may say "undefined" or "Promise" — that is normal;
- *    Zotero does not always show the resolved async result. Read the Output pane
- *    for the real summary (look for the line starting with ">>> PRanker result:").
+ *    The result line should show a short "PRanker: filter started…" message (not
+ *    undefined). When the run finishes, scroll Output for ">>> PRanker result:".
  * 5. When done, review the "Filtered Out (PRanker)" collection.
  *    Delete items from there if desired — or drag them back if you disagree.
  * 6. To undo tags: right-click any tag in the tag selector and choose
@@ -226,8 +225,12 @@ function removePrankerTags(item) {
 }
 
 // ── Entry point ────────────────────────────────────────────────────────────────
+// Zotero shows the value of the *last expression* in the script. If that value
+// is a Promise (from `async () => …()`), the UI shows `undefined`. So we end
+// with a synchronous string and attach the real work via `.then()` / `.catch()`.
 
-(async () => {
+(function prankerFilterEntry() {
+  (async () => {
   // ── Load ranking data ──────────────────────────────────────────────────────
   output("Loading ranking data from GitHub Pages …");
   let coreData, scimagoData;
@@ -331,19 +334,20 @@ function removePrankerTags(item) {
   }
 
   return `PRanker: finished — ${kept} kept, ${filtered + unmatched} moved to "${FILTERED_COLLECTION_NAME}". (Details in Output pane.)`;
-})().then(
-  (msg) => {
-    output(`\n>>> PRanker result: ${msg}`);
-    return msg;
-  },
-  (err) => {
-    output(`\n>>> PRanker FAILED: ${err && err.message ? err.message : err}`);
-    throw err;
-  }
-);
+  })()
+    .then((msg) => {
+      output(`\n>>> PRanker result: ${msg}`);
+    })
+    .catch((err) => {
+      output(`\n>>> PRanker FAILED: ${err && err.message ? err.message : err}`);
+    });
 
-/*
- * The Run JavaScript pane often shows "undefined" or "Promise { … }" because
- * the last expression is a Promise. That does not mean the script failed —
- * scroll the Output pane for ">>> PRanker result:" and the per-item lines.
- */
+  return (
+    "PRanker: filter started — keep this window open until Output shows " +
+    "\">>> PRanker result:\"."
+  );
+})();
+
+// This must be the LAST line of the file: Zotero uses it as the "result" value.
+// (An IIFE alone is not enough in some builds — the trailing string fixes undefined.)
+"PRanker: OK — async filter is running; scroll Output for KEEP/FILTER lines and >>> PRanker result.";
