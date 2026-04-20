@@ -23,6 +23,9 @@
  * 2. Open  Tools → Developer → Run JavaScript
  * 3. Paste the ENTIRE contents of this file into the code box.
  * 4. Click  Run  and watch the Output pane for progress.
+ *    The line at the bottom may say "undefined" or "Promise" — that is normal;
+ *    Zotero does not always show the resolved async result. Read the Output pane
+ *    for the real summary (look for the line starting with ">>> PRanker result:").
  * 5. When done, review the "Filtered Out (PRanker)" collection.
  *    Delete items from there if desired — or drag them back if you disagree.
  * 6. To undo tags: right-click any tag in the tag selector and choose
@@ -242,7 +245,7 @@ function removePrankerTags(item) {
   } catch (e) {
     output(`ERROR loading data: ${e.message}`);
     output("Make sure you have an internet connection and the GitHub Pages site is live.");
-    return;
+    return "PRanker: stopped — could not load ranking JSON (see Output).";
   }
 
   // ── Get items ──────────────────────────────────────────────────────────────
@@ -264,7 +267,7 @@ function removePrankerTags(item) {
 
   if (!items.length) {
     output("Nothing to do.");
-    return;
+    return "PRanker: no regular items in scope (0 processed).";
   }
 
   // ── Prepare "Filtered Out" collection ─────────────────────────────────────
@@ -326,4 +329,21 @@ function removePrankerTags(item) {
       output(`  … and ${unmatchedTitles.length - 20} more (tagged "PRanker: Unranked")`);
     }
   }
-})();
+
+  return `PRanker: finished — ${kept} kept, ${filtered + unmatched} moved to "${FILTERED_COLLECTION_NAME}". (Details in Output pane.)`;
+})().then(
+  (msg) => {
+    output(`\n>>> PRanker result: ${msg}`);
+    return msg;
+  },
+  (err) => {
+    output(`\n>>> PRanker FAILED: ${err && err.message ? err.message : err}`);
+    throw err;
+  }
+);
+
+/*
+ * The Run JavaScript pane often shows "undefined" or "Promise { … }" because
+ * the last expression is a Promise. That does not mean the script failed —
+ * scroll the Output pane for ">>> PRanker result:" and the per-item lines.
+ */
