@@ -9,10 +9,13 @@
 
   const CORE_DATA_URL = "data/core.json";
   const SCIMAGO_DATA_URL = "data/scimago.json";
-  /** Official homepage URLs from scripts/find_conf_urls.py (same data as conf_urls.csv). */
-  const CONF_URLS_CACHE_URL = "data/conf_urls_cache.json";
-  /** Scraped scope text from scripts/enrich_conf_descriptions.py — fills gaps if core.json has no description yet. */
+  /** Official URLs: prefer public mirror, then cache (same content after find_conf_urls.py). */
+  const CONF_URLS_URLS = ["data/conf_urls.json", "data/conf_urls_cache.json"];
+  /** Scraped scope text — fills gaps if core.json has no description yet. */
   const CONF_DESC_CACHE_URL = "data/conf_desc_cache.json";
+  /** Bundled aideadlin.es snapshot (scripts/build_conference_deadlines.py). Same-origin = reliable. */
+  const CONFERENCE_DEADLINES_JSON = "data/conference_deadlines.json";
+  /** Optional live fallback if the bundle is missing. */
   const DEADLINES_YAML_URL =
     "https://raw.githubusercontent.com/paperswithcode/ai-deadlines/gh-pages/_data/conferences.yml";
 
@@ -41,7 +44,7 @@
   /** Maps for conference date / location / link (rebuilt when YAML loads). */
   let confDeadlineByAcronym = null;
   let confDeadlineByNormTitle = null;
-  /** Uppercase CORE acronym → official site URL (from conf_urls_cache.json). */
+  /** Uppercase CORE acronym → official site URL (from conf_urls.json / cache). */
   let confOfficialUrlByAcronym = null;
   /** Uppercase CORE acronym → description string (from conf_desc_cache.json, fallback only). */
   let confDescFallbackByAcronym = null;
@@ -276,19 +279,24 @@
     confOfficialUrlByAcronym = new Map();
     confDescFallbackByAcronym = new Map();
     try {
-      const [urlResp, descResp] = await Promise.all([
-        fetch(CONF_URLS_CACHE_URL),
-        fetch(CONF_DESC_CACHE_URL),
-      ]);
-      if (urlResp.ok) {
-        const raw = await urlResp.json();
-        for (const [key, val] of Object.entries(raw)) {
-          if (!val || typeof val !== "object") continue;
-          const u = (val.url || "").trim();
-          if (!u) continue;
-          confOfficialUrlByAcronym.set(String(key).trim().toUpperCase(), u);
+      let urlRaw = null;
+      for (const u of CONF_URLS_URLS) {
+        const urlResp = await fetch(u);
+        if (urlResp.ok) {
+          urlRaw = await urlResp.json();
+          break;
         }
       }
+      if (urlRaw && typeof urlRaw === "object") {
+        for (const [key, val] of Object.entries(urlRaw)) {
+          if (!val || typeof val !== "object") continue;
+          const href = (val.url || "").trim();
+          if (!href) continue;
+          confOfficialUrlByAcronym.set(String(key).trim().toUpperCase(), href);
+        }
+      }
+
+      const descResp = await fetch(CONF_DESC_CACHE_URL);
       if (descResp.ok) {
         const raw = await descResp.json();
         for (const [key, val] of Object.entries(raw)) {
@@ -327,30 +335,36 @@
   }
 
   async function loadDeadlineData() {
+    deadlineLoadFailed = false;
+    deadlineEntries = [];
+    try {
+      const resp = await fetch(CONFERENCE_DEADLINES_JSON);
+      if (!resp.ok) throw new Error(`bundled deadlines HTTP ${resp.status}`);
+      const data = await resp.json();
+      deadlineEntries = Array.isArray(data) ? data : [];
+      if (!deadlineEntries.length) throw new Error("bundled deadlines empty");
+      rebuildConferenceDeadlineLookups();
+    } catch (e) {
+      console.warn("data/conference_deadlines.json not available, trying live YAML:", e.message || e);
+      await loadDeadlineDataLiveYaml();
+    }
+  }
+
+  async function loadDeadlineDataLiveYaml() {
     try {
       const resp = await fetch(DEADLINES_YAML_URL);
-      if (!resp.ok) {
-        deadlineLoadFailed = true;
-        deadlineEntries = [];
-        rebuildConferenceDeadlineLookups();
-        return;
-      }
+      if (!resp.ok) throw new Error(`YAML HTTP ${resp.status}`);
       const text = await resp.text();
-      if (typeof jsyaml === "undefined") {
-        deadlineLoadFailed = true;
-        deadlineEntries = [];
-        rebuildConferenceDeadlineLookups();
-        console.warn("js-yaml not loaded; deadline data unavailable");
-        return;
-      }
+      if (typeof jsyaml === "undefined") throw new Error("js-yaml not loaded");
       const parsed = jsyaml.load(text);
       deadlineEntries = Array.isArray(parsed) ? parsed : [];
+      deadlineLoadFailed = !deadlineEntries.length;
       rebuildConferenceDeadlineLookups();
     } catch (e) {
       deadlineLoadFailed = true;
       deadlineEntries = [];
       rebuildConferenceDeadlineLookups();
-      console.warn("Failed to load deadline data:", e);
+      console.warn("Live deadline YAML failed:", e);
     }
   }
 
@@ -601,13 +615,15 @@
         }
       }
 
-      // 4. Not found in local data — show with DBLP search link (conference-shaped only)
+      // 4. Not in CORE/SCImago — CORE portal + DBLP search (never use DBLP as primary link)
       if (wantConference) {
+        const coreSearch = `https://portal.core.edu.au/conf-ranks/?search=${encodeURIComponent(acronym)}&by=acronym`;
         const dblpSearch = `https://dblp.org/search?q=${encodeURIComponent(name || acronym)}`;
         aiExtra.push({
           acronym, title: name || acronym, ranking: "?",
           system: "AI", type: "Conference",
-          link: dblpSearch, dblpUrl: null,
+          link: coreSearch,
+          dblpUrl: dblpSearch,
           score: 0, aiSuggested: true,
         });
         foundAcronyms.add(acronym);
@@ -924,6 +940,37 @@
     return null;
   }
 
+  function venuePrimaryWebsiteUrl(v, dlInfo) {
+    const official = v.type === "Conference" ? getOfficialConfUrl(v.acronym) : "";
+    const deadlineSite = (dlInfo && dlInfo.siteLink) || "";
+    return deadlineSite || official || "";
+  }
+
+  /** Conference homepage / DBLP / ranking links — avoids showing only DBLP for AI rows. */
+  function formatVenueLinkCell(v, dlInfo) {
+    const website = venuePrimaryWebsiteUrl(v, dlInfo);
+    const parts = [];
+    if (website) {
+      parts.push(
+        `<a href="${escapeHtml(website)}" target="_blank" rel="noopener">Website ↗</a>`
+      );
+    }
+    if (v.dblpUrl) {
+      parts.push(
+        `<a href="${escapeHtml(v.dblpUrl)}" target="_blank" rel="noopener">DBLP ↗</a>`
+      );
+    }
+    if (v.link && !/^https?:\/\/([^/]*\.)?dblp\.org/i.test(v.link)) {
+      const lbl = v.type === "Conference" ? "CORE ↗" : "SCImago ↗";
+      if (!website || v.link !== website) {
+        parts.push(
+          `<a href="${escapeHtml(v.link)}" target="_blank" rel="noopener">${lbl}</a>`
+        );
+      }
+    }
+    return parts.length ? parts.join(" · ") : "—";
+  }
+
   function renderVenuesTable() {
     venuesBody.innerHTML = "";
     if (!venueResults.length) {
@@ -936,14 +983,7 @@
       const info = getConferenceDeadlineRow(v);
       const nextDate   = info ? info.date     : "—";
       const location   = info ? (info.location || "—") : "—";
-      const officialUrl = v.type === "Conference" ? getOfficialConfUrl(v.acronym) : "";
-      const href = (info && info.siteLink) || officialUrl || v.link || "";
-      const siteLabel = href
-        ? ((info && info.siteLink) || officialUrl ? "Website ↗" : "View ↗")
-        : "";
-      const siteLink = href
-        ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">${siteLabel}</a>`
-        : "—";
+      const siteLink   = formatVenueLinkCell(v, info);
       const aiBadge = v.aiSuggested
         ? `<span class="badge-ai" title="Suggested by AI">AI</span> `
         : "";
@@ -1040,11 +1080,10 @@
 
   function handleVenuesExport() {
     if (!venueResults.length) return;
-    const headers = ["#", "Name", "Acronym", "Type", "Ranking", "System", "Description", "Next Date", "Location", "Website", "Ranking Link"];
+    const headers = ["#", "Name", "Acronym", "Type", "Ranking", "System", "Description", "Next Date", "Location", "Website", "DBLP", "Ranking Link"];
     const rows = venueResults.map((v, i) => {
       const info = getConferenceDeadlineRow(v);
-      const officialUrl = v.type === "Conference" ? getOfficialConfUrl(v.acronym) : "";
-      const websiteOut = (info && info.siteLink) || officialUrl || "";
+      const websiteOut = venuePrimaryWebsiteUrl(v, info);
       return [
         i + 1,
         csvCell(v.title),
@@ -1056,6 +1095,7 @@
         csvCell(info ? info.date : ""),
         csvCell(info ? (info.location || "") : ""),
         csvCell(websiteOut),
+        csvCell(v.dblpUrl || ""),
         csvCell(v.link || ""),
       ].join(",");
     });

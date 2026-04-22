@@ -8,6 +8,7 @@ Sources (tried in order per conference):
 Output:
   data/conf_urls.csv     — one row per conference; review / edit this file
   data/conf_urls_cache.json — raw search results cache (speeds up reruns)
+  data/conf_urls.json    — same object as the cache; Find Venues loads this first
 
 After reviewing conf_urls.csv, run:
   python scripts/enrich_conf_descriptions.py
@@ -34,6 +35,7 @@ except ImportError:
 DATA_DIR   = Path(__file__).resolve().parent.parent / "data"
 CORE_JSON  = DATA_DIR / "core.json"
 CACHE_JSON = DATA_DIR / "conf_urls_cache.json"
+PUBLIC_JSON = DATA_DIR / "conf_urls.json"
 OUTPUT_CSV = DATA_DIR / "conf_urls.csv"
 
 AIDEADLINES_URL = (
@@ -149,10 +151,9 @@ def load_cache() -> dict:
 
 
 def save_cache(cache: dict) -> None:
-    CACHE_JSON.write_text(
-        json.dumps(cache, ensure_ascii=False, separators=(",", ":")),
-        encoding="utf-8",
-    )
+    blob = json.dumps(cache, ensure_ascii=False, separators=(",", ":"))
+    CACHE_JSON.write_text(blob, encoding="utf-8")
+    PUBLIC_JSON.write_text(blob, encoding="utf-8")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -235,6 +236,13 @@ def main() -> None:
         w = csv.DictWriter(f, fieldnames=["acronym", "title", "rank", "url", "source"])
         w.writeheader()
         w.writerows(rows)
+
+    # Mirror cache for static hosting (venues.js prefers conf_urls.json)
+    cache_final = load_cache()
+    PUBLIC_JSON.write_text(
+        json.dumps(cache_final, ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8",
+    )
 
     print(f"\nDone.")
     print(f"  From aideadlin.es / cache : {skipped + found - searched}")
