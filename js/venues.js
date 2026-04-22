@@ -51,6 +51,8 @@
   let venueResults = [];
   let deadlineResults = [];
   let deadlineLoadFailed = false;
+  /** Single flight so conf_urls / desc cache are ready before we render links (avoids DBLP+CORE when official URL exists). */
+  let venueExtrasPromise = null;
 
   // ---- DOM references ----
 
@@ -266,9 +268,14 @@
     setupAiSettings();
     setupEventListeners();
     // Load ranking data + deadline data in parallel; don't block the UI
-    Promise.allSettled([loadRankingData(), loadDeadlineData(), loadVenueExtrasFromDataFiles()]).then(() => {
+    Promise.allSettled([loadRankingData(), loadDeadlineData(), ensureVenueExtrasLoaded()]).then(() => {
       updateFindBtnState();
     });
+  }
+
+  function ensureVenueExtrasLoaded() {
+    if (!venueExtrasPromise) venueExtrasPromise = loadVenueExtrasFromDataFiles();
+    return venueExtrasPromise;
   }
 
   /**
@@ -494,6 +501,8 @@
   async function handleFind() {
     const rawQuery = topicInput.value.trim();
     if (!rawQuery) return;
+
+    await ensureVenueExtrasLoaded();
 
     const coreRanks    = getChecked("core-rank");
     const scimagoRanks = getChecked("scimago-rank");
@@ -940,10 +949,25 @@
     return null;
   }
 
+  /** True if href is a ranking/DBLP lookup page, not a venue homepage. */
+  function isRankingOrDblpUrl(href) {
+    if (!href || typeof href !== "string") return true;
+    const h = href.trim().toLowerCase();
+    return (
+      /^https?:\/\/([^/]*\.)?dblp\.org/i.test(href)
+      || h.includes("portal.core.edu.au")
+      || h.includes("scimagojr.com/journalsearch")
+    );
+  }
+
   function venuePrimaryWebsiteUrl(v, dlInfo) {
-    const official = v.type === "Conference" ? getOfficialConfUrl(v.acronym) : "";
     const deadlineSite = (dlInfo && dlInfo.siteLink) || "";
-    return deadlineSite || official || "";
+    const official = v.type === "Conference" ? getOfficialConfUrl(v.acronym) : "";
+    const fromEntry =
+      v.link && typeof v.link === "string" && !isRankingOrDblpUrl(v.link)
+        ? v.link.trim()
+        : "";
+    return deadlineSite || official || fromEntry || "";
   }
 
   /** Primary website when known; otherwise DBLP + ranking portal so AI rows are still usable. */
