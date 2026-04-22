@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <title>P Ranker — Find Venues (v2)</title>
+  <link rel="stylesheet" href="css/style.css?v=13">
+</head>
+<body>
+  <header>
+    <h1>P Ranker</h1>
+    <p class="subtitle">Find conferences &amp; journals (data-folder sources only)</p>
+    <nav class="app-nav">
+      <a href="index.html" class="nav-link">Rank Papers</a>
+      <a href="venues.html" class="nav-link">Find Venues</a>
+      <a href="venues_v2.html" class="nav-link active">Find Venues v2</a>
+    </nav>
+  </header>
+
+  <p class="disclaimer" role="note">
+    <strong>v2</strong> uses only static files in <code>data/</code>:
+    <code>conf_urls_cache.json</code>, <code>conf_desc_cache.json</code>,
+    <code>conference_deadlines.json</code>, and <code>scimago.json</code>.
+    No CORE/DBLP portal links in the app; journal links open SCImago search from ISSN/title.
+  </p>
+
+  <main>
+    <section class="input-section">
+      <label class="field-label" for="topic-input">Topic or keywords</label>
+      <textarea
+        id="topic-input"
+        placeholder="e.g.  machine learning&#10;software engineering&#10;natural language processing"
+        rows="4"
+      ></textarea>
+
+      <div class="venue-filters">
+        <div class="filter-group">
+          <span class="filter-label">Conference ranking (CORE)</span>
+          <label><input type="checkbox" name="core-rank" value="A*" checked> A*</label>
+          <label><input type="checkbox" name="core-rank" value="A"  checked> A</label>
+          <label><input type="checkbox" name="core-rank" value="B"  checked> B</label>
+          <label><input type="checkbox" name="core-rank" value="C"> C</label>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Journal ranking (SCImago)</span>
+          <label><input type="checkbox" name="scimago-rank" value="Q1" checked> Q1</label>
+          <label><input type="checkbox" name="scimago-rank" value="Q2" checked> Q2</label>
+          <label><input type="checkbox" name="scimago-rank" value="Q3"> Q3</label>
+          <label><input type="checkbox" name="scimago-rank" value="Q4"> Q4</label>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Type</span>
+          <label><input type="checkbox" name="venue-type" value="conference" checked> Conferences</label>
+          <label><input type="checkbox" name="venue-type" value="journal"    checked> Journals</label>
+        </div>
+      </div>
+
+      <div class="input-actions">
+        <button type="button" id="find-btn" class="primary-btn" disabled>Find Venues</button>
+        <button type="button" id="venues-clear-btn" class="secondary-btn">Clear</button>
+      </div>
+      <p class="hint action-hint" id="search-hint">Loading data…</p>
+    </section>
+
+    <section class="progress-section" id="progress-section" hidden>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <p class="progress-text" id="progress-text">Searching…</p>
+    </section>
+
+    <section class="result-collapsible" id="venues-section" hidden>
+      <details class="result-details" open>
+        <summary class="result-summary">
+          <span class="result-summary-title">Matching venues</span>
+          <span class="result-count" id="venues-count"></span>
+          <button type="button" id="venues-export-btn" class="secondary-btn small-btn">Download CSV</button>
+        </summary>
+        <div class="table-wrapper">
+          <table id="venues-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Acronym</th>
+                <th>Type</th>
+                <th>Ranking</th>
+                <th>Description</th>
+                <th>Next date</th>
+                <th>Location</th>
+                <th>Link</th>
+              </tr>
+            </thead>
+            <tbody id="venues-body"></tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      Journal discovery via <a href="https://www.scimagojr.com/" target="_blank" rel="noopener">SCImago</a>.
+      Conference schedules from bundled <code>conference_deadlines.json</code> where available.
+    </p>
+  </footer>
+
+  <script src="js/venues_v2.js?v=1"></script>
+</body>
+</html>
