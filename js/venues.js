@@ -9,6 +9,10 @@
 
   const CORE_DATA_URL = "data/core.json";
   const SCIMAGO_DATA_URL = "data/scimago.json";
+  /** Official homepage URLs from scripts/find_conf_urls.py (same data as conf_urls.csv). */
+  const CONF_URLS_CACHE_URL = "data/conf_urls_cache.json";
+  /** Scraped scope text from scripts/enrich_conf_descriptions.py — fills gaps if core.json has no description yet. */
+  const CONF_DESC_CACHE_URL = "data/conf_desc_cache.json";
   const DEADLINES_YAML_URL =
     "https://raw.githubusercontent.com/paperswithcode/ai-deadlines/gh-pages/_data/conferences.yml";
 
@@ -37,6 +41,10 @@
   /** Maps for conference date / location / link (rebuilt when YAML loads). */
   let confDeadlineByAcronym = null;
   let confDeadlineByNormTitle = null;
+  /** Uppercase CORE acronym → official site URL (from conf_urls_cache.json). */
+  let confOfficialUrlByAcronym = null;
+  /** Uppercase CORE acronym → description string (from conf_desc_cache.json, fallback only). */
+  let confDescFallbackByAcronym = null;
   let venueResults = [];
   let deadlineResults = [];
   let deadlineLoadFailed = false;
@@ -255,9 +263,53 @@
     setupAiSettings();
     setupEventListeners();
     // Load ranking data + deadline data in parallel; don't block the UI
-    Promise.allSettled([loadRankingData(), loadDeadlineData()]).then(() => {
+    Promise.allSettled([loadRankingData(), loadDeadlineData(), loadVenueExtrasFromDataFiles()]).then(() => {
       updateFindBtnState();
     });
+  }
+
+  /**
+   * Load URL + description caches produced by the Python data scripts.
+   * These are optional: if missing or fetch fails, venue search still works from core.json only.
+   */
+  async function loadVenueExtrasFromDataFiles() {
+    confOfficialUrlByAcronym = new Map();
+    confDescFallbackByAcronym = new Map();
+    try {
+      const [urlResp, descResp] = await Promise.all([
+        fetch(CONF_URLS_CACHE_URL),
+        fetch(CONF_DESC_CACHE_URL),
+      ]);
+      if (urlResp.ok) {
+        const raw = await urlResp.json();
+        for (const [key, val] of Object.entries(raw)) {
+          if (!val || typeof val !== "object") continue;
+          const u = (val.url || "").trim();
+          if (!u) continue;
+          confOfficialUrlByAcronym.set(String(key).trim().toUpperCase(), u);
+        }
+      }
+      if (descResp.ok) {
+        const raw = await descResp.json();
+        for (const [key, val] of Object.entries(raw)) {
+          if (typeof val === "string" && val.trim()) {
+            confDescFallbackByAcronym.set(String(key).trim().toUpperCase(), val.trim());
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Optional venue extras (conf URLs / desc cache) not loaded:", e);
+    }
+  }
+
+  function getOfficialConfUrl(acronym) {
+    if (!confOfficialUrlByAcronym || !acronym) return "";
+    return confOfficialUrlByAcronym.get(String(acronym).trim().toUpperCase()) || "";
+  }
+
+  function getConfDescriptionFallback(acronym) {
+    if (!confDescFallbackByAcronym || !acronym) return "";
+    return confDescFallbackByAcronym.get(String(acronym).trim().toUpperCase()) || "";
   }
 
   async function loadRankingData() {
@@ -490,10 +542,14 @@
         const portalLink = coreEntry.id
           ? `https://portal.core.edu.au/conf-ranks/${coreEntry.id}/`
           : `https://portal.core.edu.au/conf-ranks/?search=${encodeURIComponent(acronym)}&by=acronym`;
+        const aiDesc =
+          (coreEntry.description && String(coreEntry.description).trim())
+          || getConfDescriptionFallback(acronym);
         aiExtra.push({
           acronym, title: coreEntry.t, ranking: coreEntry.r,
           system: "CORE", type: "Conference",
           link: portalLink, dblpUrl: coreEntry.dblp || null,
+          description: aiDesc,
           score: 0, aiSuggested: true,
         });
         foundAcronyms.add(acronym);
@@ -510,10 +566,15 @@
             const portalLink = coreEntry2.id
               ? `https://portal.core.edu.au/conf-ranks/${coreEntry2.id}/`
               : `https://portal.core.edu.au/conf-ranks/?search=${encodeURIComponent(acr2)}&by=acronym`;
+            const acrUse = acr2 || acronym;
+            const aiDesc2 =
+              (coreEntry2.description && String(coreEntry2.description).trim())
+              || getConfDescriptionFallback(acrUse);
             aiExtra.push({
-              acronym: acr2 || acronym, title: name, ranking: coreByTitle.r,
+              acronym: acrUse, title: name, ranking: coreByTitle.r,
               system: "CORE", type: "Conference",
               link: portalLink, dblpUrl: coreEntry2.dblp || null,
+              description: aiDesc2,
               score: 0, aiSuggested: true,
             });
             foundAcronyms.add(acronym);
@@ -621,6 +682,9 @@
         const portalLink = entry.id
           ? `https://portal.core.edu.au/conf-ranks/${entry.id}/`
           : `https://portal.core.edu.au/conf-ranks/?search=${encodeURIComponent(acronym)}&by=acronym`;
+        const desc =
+          (entry.description && String(entry.description).trim())
+          || getConfDescriptionFallback(acronym);
         results.push({
           acronym,
           title: entry.t,
@@ -629,7 +693,7 @@
           type: "Conference",
           link: portalLink,
           dblpUrl: entry.dblp || null,
-          description: entry.description || "",
+          description: desc,
           score: totalScore + (aiMatched ? AI_BOOST : 0),
           aiSuggested: aiMatched,
         });
@@ -872,9 +936,14 @@
       const info = getConferenceDeadlineRow(v);
       const nextDate   = info ? info.date     : "—";
       const location   = info ? (info.location || "—") : "—";
-      const siteLink   = info?.siteLink
-        ? `<a href="${escapeHtml(info.siteLink)}" target="_blank" rel="noopener">Website ↗</a>`
-        : (v.link ? `<a href="${escapeHtml(v.link)}" target="_blank" rel="noopener">View ↗</a>` : "—");
+      const officialUrl = v.type === "Conference" ? getOfficialConfUrl(v.acronym) : "";
+      const href = (info && info.siteLink) || officialUrl || v.link || "";
+      const siteLabel = href
+        ? ((info && info.siteLink) || officialUrl ? "Website ↗" : "View ↗")
+        : "";
+      const siteLink = href
+        ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">${siteLabel}</a>`
+        : "—";
       const aiBadge = v.aiSuggested
         ? `<span class="badge-ai" title="Suggested by AI">AI</span> `
         : "";
@@ -974,6 +1043,8 @@
     const headers = ["#", "Name", "Acronym", "Type", "Ranking", "System", "Description", "Next Date", "Location", "Website", "Ranking Link"];
     const rows = venueResults.map((v, i) => {
       const info = getConferenceDeadlineRow(v);
+      const officialUrl = v.type === "Conference" ? getOfficialConfUrl(v.acronym) : "";
+      const websiteOut = (info && info.siteLink) || officialUrl || "";
       return [
         i + 1,
         csvCell(v.title),
@@ -984,7 +1055,7 @@
         csvCell(v.description || ""),
         csvCell(info ? info.date : ""),
         csvCell(info ? (info.location || "") : ""),
-        csvCell(info ? (info.siteLink || "") : ""),
+        csvCell(websiteOut),
         csvCell(v.link || ""),
       ].join(",");
     });

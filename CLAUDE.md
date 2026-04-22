@@ -9,6 +9,7 @@ A client-side web app that determines the ranking (SCImago Q1-Q4 for journals, C
 - **Pure client-side**: HTML + CSS + vanilla JS, deployed on GitHub Pages
 - **CrossRef API**: Called from browser to resolve DOIs into paper metadata
 - **Pre-bundled ranking data**: `data/scimago.json` (journals) and `data/core.json` (conferences) built by Python scripts at CI time
+- **Find Venues** (`venues.html`): also loads `data/conf_urls_cache.json` (official conference URLs for the Website column) and `data/conf_desc_cache.json` (description fallback when `core.json` has no `description` yet)
 
 ## Key Commands
 
