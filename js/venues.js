@@ -946,15 +946,13 @@
     return deadlineSite || official || "";
   }
 
-  /** Conference homepage / DBLP / ranking links — avoids showing only DBLP for AI rows. */
+  /** Primary website when known; otherwise DBLP + ranking portal so AI rows are still usable. */
   function formatVenueLinkCell(v, dlInfo) {
     const website = venuePrimaryWebsiteUrl(v, dlInfo);
-    const parts = [];
     if (website) {
-      parts.push(
-        `<a href="${escapeHtml(website)}" target="_blank" rel="noopener">Website ↗</a>`
-      );
+      return `<a href="${escapeHtml(website)}" target="_blank" rel="noopener">Website ↗</a>`;
     }
+    const parts = [];
     if (v.dblpUrl) {
       parts.push(
         `<a href="${escapeHtml(v.dblpUrl)}" target="_blank" rel="noopener">DBLP ↗</a>`
@@ -962,11 +960,9 @@
     }
     if (v.link && !/^https?:\/\/([^/]*\.)?dblp\.org/i.test(v.link)) {
       const lbl = v.type === "Conference" ? "CORE ↗" : "SCImago ↗";
-      if (!website || v.link !== website) {
-        parts.push(
-          `<a href="${escapeHtml(v.link)}" target="_blank" rel="noopener">${lbl}</a>`
-        );
-      }
+      parts.push(
+        `<a href="${escapeHtml(v.link)}" target="_blank" rel="noopener">${lbl}</a>`
+      );
     }
     return parts.length ? parts.join(" · ") : "—";
   }
