@@ -28,6 +28,7 @@ jobs:
       - name: Validate site & data
         run: |
           test -f index.html
+          test -f venues.html
           test -f css/style.css
           test -f js/app.js
           test -f data/scimago.json
@@ -40,7 +41,6 @@ jobs:
           mkdir -p _site
           cp index.html _site/
           cp venues.html _site/
-          cp venues_v2.html _site/
           cp -r css js data _site/
 
       - name: Configure GitHub Pages
