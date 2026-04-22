@@ -34,6 +34,9 @@
   let coreData = null;
   let scimagoData = null;
   let deadlineEntries = [];
+  /** Maps for conference date / location / link (rebuilt when YAML loads). */
+  let confDeadlineByAcronym = null;
+  let confDeadlineByNormTitle = null;
   let venueResults = [];
   let deadlineResults = [];
   let deadlineLoadFailed = false;
@@ -276,18 +279,25 @@
       const resp = await fetch(DEADLINES_YAML_URL);
       if (!resp.ok) {
         deadlineLoadFailed = true;
+        deadlineEntries = [];
+        rebuildConferenceDeadlineLookups();
         return;
       }
       const text = await resp.text();
       if (typeof jsyaml === "undefined") {
         deadlineLoadFailed = true;
+        deadlineEntries = [];
+        rebuildConferenceDeadlineLookups();
         console.warn("js-yaml not loaded; deadline data unavailable");
         return;
       }
       const parsed = jsyaml.load(text);
       deadlineEntries = Array.isArray(parsed) ? parsed : [];
+      rebuildConferenceDeadlineLookups();
     } catch (e) {
       deadlineLoadFailed = true;
+      deadlineEntries = [];
+      rebuildConferenceDeadlineLookups();
       console.warn("Failed to load deadline data:", e);
     }
   }
@@ -467,12 +477,14 @@
     // Also try stripping a leading "the " since some sources include it and others don't.
     const normTitle = (s) => (s || "").toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
     const normTitleNoThe = (s) => normTitle(s).replace(/^the\s+/, "");
+    const wantConference = types.includes("conference");
+    const wantJournal    = types.includes("journal");
 
     for (const { acronym, name } of aiVenueSuggestions) {
       if (foundAcronyms.has(acronym)) continue;
 
       // 1. CORE conference by acronym
-      const coreEntry = coreData?.by_acronym?.[acronym];
+      const coreEntry = wantConference && coreData?.by_acronym?.[acronym];
       if (coreEntry) {
         if (coreRanks.length && !coreRanks.includes(coreEntry.r)) { foundAcronyms.add(acronym); continue; }
         const portalLink = coreEntry.id
@@ -489,7 +501,7 @@
       }
 
       // 2. CORE conference by full name
-      if (name && coreData?.by_title) {
+      if (wantConference && name && coreData?.by_title) {
         const coreByTitle = coreData.by_title[normTitle(name)];
         if (coreByTitle) {
           const acr2 = coreByTitle.a || acronym;
@@ -511,7 +523,7 @@
       }
 
       // 3. SCImago journal by full name (try with and without leading "the ")
-      if (name && scimagoData?.by_title) {
+      if (wantJournal && name && scimagoData?.by_title) {
         const sciEntry = scimagoData.by_title[normTitle(name)]
                       || scimagoData.by_title[normTitleNoThe(name)];
         if (sciEntry) {
@@ -528,15 +540,17 @@
         }
       }
 
-      // 4. Not found in local data — show with DBLP search link
-      const dblpSearch = `https://dblp.org/search?q=${encodeURIComponent(name || acronym)}`;
-      aiExtra.push({
-        acronym, title: name || acronym, ranking: "?",
-        system: "AI", type: "Conference",
-        link: dblpSearch, dblpUrl: null,
-        score: 0, aiSuggested: true,
-      });
-      foundAcronyms.add(acronym);
+      // 4. Not found in local data — show with DBLP search link (conference-shaped only)
+      if (wantConference) {
+        const dblpSearch = `https://dblp.org/search?q=${encodeURIComponent(name || acronym)}`;
+        aiExtra.push({
+          acronym, title: name || acronym, ranking: "?",
+          system: "AI", type: "Conference",
+          link: dblpSearch, dblpUrl: null,
+          score: 0, aiSuggested: true,
+        });
+        foundAcronyms.add(acronym);
+      }
     }
 
     venueResults = [...kwResults, ...aiExtra];
@@ -788,32 +802,62 @@
   }
 
   /**
-   * Build a map from uppercase acronym → next upcoming conference date string.
-   * Uses the already-loaded deadlineEntries (aideadlin.es YAML).
+   * Rebuild lookup maps from aideadlin.es YAML so we can match CORE venues
+   * by acronym OR by normalised full title (YAML `full_name` vs CORE `t`).
    */
-  function buildDateMap() {
-    // Per acronym: keep the most-recent entry, then project its date forward.
-    // Returns a map of acronym → { date, location, siteLink }
+  function rebuildConferenceDeadlineLookups() {
+    confDeadlineByAcronym = new Map();
+    confDeadlineByNormTitle = new Map();
+    if (!deadlineEntries.length) return;
+
     const best = new Map();
     for (const entry of deadlineEntries) {
+      const startIso = entry.start || "";
+      if (!startIso || startIso < "2022-01-01") continue;
       const acr = (entry.title || entry.name || "").toUpperCase().trim();
-      if (!acr || !entry.start) continue;
+      if (!acr) continue;
       const existing = best.get(acr);
-      if (!existing || entry.start > existing.start) best.set(acr, entry);
+      if (!existing || startIso > (existing.start || "")) best.set(acr, entry);
     }
-    const map = new Map();
-    for (const [acr, entry] of best) {
+
+    const normPick = new Map(); // normKey → { start, row }
+
+    for (const entry of best.values()) {
       const proj = projectToFuture(entry.start);
       if (!proj) continue;
       const label = proj.date.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
-      map.set(acr, {
-        date:     proj.estimated ? `~${label} (est.)` : (entry.date || label),
+      const row = {
+        date: proj.estimated ? `~${label} (est.)` : (entry.date || label),
         location: entry.place || "",
         siteLink: entry.link || "",
         estimated: proj.estimated,
-      });
+      };
+      const shortUpper = (entry.title || entry.name || "").toUpperCase().trim();
+      confDeadlineByAcronym.set(shortUpper, row);
+
+      const bump = (normKey) => {
+        if (!normKey) return;
+        const prev = normPick.get(normKey);
+        const s = entry.start || "";
+        if (!prev || s > prev.start) normPick.set(normKey, { start: s, row });
+      };
+      bump(normalizeForMatch(entry.full_name || ""));
+      bump(normalizeForMatch(shortUpper));
     }
-    return map;
+
+    for (const [normKey, { row }] of normPick) {
+      confDeadlineByNormTitle.set(normKey, row);
+    }
+  }
+
+  /** @returns {{date:string,location:string,siteLink:string,estimated?:boolean}|null} */
+  function getConferenceDeadlineRow(v) {
+    if (v.type !== "Conference" || !confDeadlineByAcronym) return null;
+    const acr = (v.acronym || "").toUpperCase().trim();
+    if (acr && confDeadlineByAcronym.has(acr)) return confDeadlineByAcronym.get(acr);
+    const nt = normalizeForMatch(v.title || "");
+    if (nt && confDeadlineByNormTitle.has(nt)) return confDeadlineByNormTitle.get(nt);
+    return null;
   }
 
   function renderVenuesTable() {
@@ -824,9 +868,8 @@
       venuesBody.appendChild(tr);
       return;
     }
-    const dateMap = buildDateMap();
     venueResults.forEach((v, i) => {
-      const info = v.type === "Conference" ? dateMap.get(v.acronym.toUpperCase()) : null;
+      const info = getConferenceDeadlineRow(v);
       const nextDate   = info ? info.date     : "—";
       const location   = info ? (info.location || "—") : "—";
       const siteLink   = info?.siteLink
@@ -928,10 +971,9 @@
 
   function handleVenuesExport() {
     if (!venueResults.length) return;
-    const dateMap = buildDateMap();
     const headers = ["#", "Name", "Acronym", "Type", "Ranking", "System", "Description", "Next Date", "Location", "Website", "Ranking Link"];
     const rows = venueResults.map((v, i) => {
-      const info = v.type === "Conference" ? dateMap.get(v.acronym.toUpperCase()) : null;
+      const info = getConferenceDeadlineRow(v);
       return [
         i + 1,
         csvCell(v.title),
