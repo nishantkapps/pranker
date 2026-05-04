@@ -1032,6 +1032,16 @@
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), OPENALEX_TIMEOUT_MS);
     try {
+      if (typeof window !== "undefined" && window.location.protocol === "https:") {
+        const low = postUrl.toLowerCase();
+        if (low.startsWith("http:")) {
+          throw new Error(
+            "This page is HTTPS (e.g. GitHub Pages) but the Scopus proxy URL uses HTTP. " +
+            "Browsers block that (mixed content). Use an HTTPS URL: deploy the proxy with TLS, " +
+            "or test with ngrok / cloudflared tunnel to localhost."
+          );
+        }
+      }
       const resp = await fetch(postUrl, {
         method: "POST",
         headers,
@@ -1057,6 +1067,15 @@
         source: data.source || "scopus",
         queryUsed: data.query_used || "",
       };
+    } catch (e) {
+      const m = e && e.message ? String(e.message) : String(e);
+      if (/NetworkError|Failed to fetch|Load failed|NetworkError when attempting/i.test(m)) {
+        throw new Error(
+          `${m} — If you opened P Ranker over HTTPS, the Scopus proxy must be HTTPS too ` +
+            "(not http://127.0.0.1:8787). Expose this server with TLS (ngrok, cloudflared, or a real host)."
+        );
+      }
+      throw e;
     } finally {
       clearTimeout(timer);
     }

@@ -126,8 +126,10 @@
         <p class="ai-settings-desc">
           To use <strong>Elsevier Scopus</strong> from this page, run the small Python server in
           <code>server/scopus_proxy.py</code> on a host you control and paste its public URL below.
-          Your <code>SCOPUS_API_KEY</code> lives only on that server. The Pages site must be served over
-          <strong>HTTPS</strong>, so the proxy URL must also be <strong>HTTPS</strong> (mixed content is blocked in browsers).
+          Your <code>SCOPUS_API_KEY</code> lives only on that server.
+          <strong>GitHub Pages is HTTPS</strong> — the proxy URL must use <strong>https://</strong> as well
+          (<code>http://127.0.0.1:8787</code> will fail with “NetworkError” because browsers block mixed content).
+          For local testing, use <code>ngrok http 8787</code> or <code>cloudflared tunnel</code> and paste the https URL here.
         </p>
         <div class="ai-field-row">
           <label for="scopus-proxy-url">Proxy base URL</label>
@@ -260,6 +262,6 @@
 
   <!-- js-yaml for parsing the aideadlin.es YAML feed -->
   <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js" crossorigin="anonymous"></script>
-  <script src="js/venues.js?v=21"></script>
+  <script src="js/venues.js?v=22"></script>
 </body>
 </html>

@@ -50,6 +50,7 @@ python scripts/scopus_literature_venues.py --query-expr 'TITLE-ABS-KEY(robot) AN
 #   export SCOPUS_PROXY_ALLOW_ORIGIN='https://YOURNAME.github.io'   # CORS; use * only for quick tests
 #   export SCOPUS_PROXY_SECRET='random-long-string'                  # optional; same value in browser “Shared secret”
 #   python server/scopus_proxy.py                                  # default PORT=8787; use HTTPS reverse proxy in prod
+# Local tunnel for testing from GitHub Pages (HTTPS cannot call http://127.0.0.1): ngrok http 8787  # paste the https URL
 # In the browser (Find Venues → Scopus proxy): paste the public URL (https://…, root or full …/literature-venues).
 
 # Local dev server

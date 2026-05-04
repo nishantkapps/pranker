@@ -94,6 +94,33 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(204)
         self.end_headers()
 
+    def do_GET(self) -> None:
+        """So opening the URL in a browser shows help instead of 501 Unsupported method."""
+        o = self.headers.get("Origin")
+        cors = _cors_headers(o)
+        parsed = urlparse(self.path)
+        path = (parsed.path or "/").rstrip("/") or "/"
+        if path not in ("/", "/health"):
+            self.send_response(404)
+            for k, v in cors.items():
+                self.send_header(k, v)
+            self.end_headers()
+            return
+        msg = (
+            "P Ranker Scopus proxy is running.\n\n"
+            "Use POST /literature-venues with Content-Type: application/json.\n"
+            "From GitHub Pages (HTTPS) your proxy URL here must also be HTTPS — "
+            "use TLS in production or an ngrok/cloudflared tunnel for local dev.\n"
+        )
+        b = msg.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(b)))
+        for k, v in cors.items():
+            self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(b)
+
     def do_POST(self) -> None:
         o = self.headers.get("Origin")
         cors = _cors_headers(o)
@@ -182,7 +209,8 @@ def main() -> None:
     host = os.environ.get("SCOPUS_PROXY_HOST") or "0.0.0.0"
     httpd = ThreadingHTTPServer((host, port), Handler)
     print(f"Scopus proxy listening on http://{host}:{port}", file=sys.stderr)
-    print("POST /literature-venues with JSON body (see module docstring).", file=sys.stderr)
+    print("POST /literature-venues with JSON body. GET / or /health for a short status page.", file=sys.stderr)
+    print("GitHub Pages is HTTPS: browsers require an HTTPS proxy URL (not plain http://127.0.0.1).", file=sys.stderr)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
