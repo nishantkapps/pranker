@@ -146,14 +146,18 @@
 
   function updateRankBtnState() {
     const activeTab = document.querySelector(".tab-btn.active").dataset.tab;
-    let hasDois = false;
+    let hasRankInput = false;
+    let hasDoiForMetadata = false;
     if (activeTab === "text") {
-      hasDois = parseDOIsFromText(doiInput.value).length > 0;
+      const items = parseItemsFromText(doiInput.value);
+      hasRankInput = items.length > 0;
+      hasDoiForMetadata = items.some((x) => x.kind === "doi");
     } else {
-      hasDois = csvFileInput.files.length > 0;
+      hasRankInput = csvFileInput.files.length > 0;
+      hasDoiForMetadata = csvFileInput.files.length > 0;
     }
-    rankBtn.disabled = !hasDois;
-    metadataBtn.disabled = !hasDois;
+    rankBtn.disabled = !hasRankInput;
+    metadataBtn.disabled = !hasDoiForMetadata;
   }
 
   // ---- DOI Parsing ----
@@ -177,52 +181,124 @@
   }
 
   function parseDOIsFromText(text) {
-    return text
-      .split(/[\n,]+/)
-      .map(extractDOI)
-      .filter(Boolean);
+    return parseItemsFromText(text)
+      .filter((x) => x.kind === "doi")
+      .map((x) => x.value);
   }
 
-  async function parseDOIsFromCSV(file) {
+  /** @returns {{ kind: 'doi'|'venue', value: string }[]} */
+  function parseItemsFromText(text) {
+    const items = [];
+    const seenDoi = new Set();
+    const seenVenue = new Set();
+    const lines = String(text || "").split(/\r?\n/);
+    for (const line of lines) {
+      const chunks = line.split(/[,;|]+/).map((c) => c.trim()).filter(Boolean);
+      const parts = chunks.length ? chunks : [];
+      if (!parts.length) continue;
+      for (const part of parts) {
+        const doi = extractDOI(part);
+        if (doi) {
+          if (!seenDoi.has(doi)) {
+            seenDoi.add(doi);
+            items.push({ kind: "doi", value: doi });
+          }
+        } else {
+          const key = normalizeTitle(part);
+          if (key && !seenVenue.has(key)) {
+            seenVenue.add(key);
+            items.push({ kind: "venue", value: part });
+          }
+        }
+      }
+    }
+    return items;
+  }
+
+  async function parseItemsFromCSV(file) {
     const text = await file.text();
     const lines = text.split(/\r?\n/).filter((l) => l.trim());
-    if (lines.length < 2) return [];
+    if (!lines.length) return [];
 
     const sep = lines[0].includes("\t") ? "\t" : ",";
-    const headers = lines[0].split(sep).map((h) => h.trim().toLowerCase().replace(/["']/g, ""));
+    const headers = lines[0].split(sep).map((h) =>
+      h.trim().toLowerCase().replace(/^["']|["']$/g, "").replace(/\s+/g, " ")
+    );
+
     const doiIdx = headers.findIndex(
       (h) => h === "doi" || h === "dois" || h === "doi_url"
     );
+    const journalIdx = headers.findIndex((h) =>
+      [
+        "journal",
+        "journal_name",
+        "journal name",
+        "venue",
+        "publication",
+        "source",
+        "container",
+        "container_title",
+      ].includes(h)
+      || (h.length > 2 && h.includes("journal"))
+    );
 
-    if (doiIdx === -1) {
-      const allDois = [];
-      for (let i = 0; i < lines.length; i++) {
-        const doi = extractDOI(lines[i].replace(/["']/g, "").trim());
-        if (doi) allDois.push(doi);
+    const items = [];
+    const seenDoi = new Set();
+    const seenVenue = new Set();
+
+    if (doiIdx >= 0 || journalIdx >= 0) {
+      for (let i = 1; i < lines.length; i++) {
+        const raw = lines[i];
+        const cols = raw.split(sep).map((c) => {
+          let s = c.trim();
+          if (
+            (s.startsWith('"') && s.endsWith('"')) ||
+            (s.startsWith("'") && s.endsWith("'"))
+          ) {
+            s = s.slice(1, -1);
+          }
+          return s.trim();
+        });
+
+        if (doiIdx >= 0 && cols[doiIdx]) {
+          const doi = extractDOI(cols[doiIdx]);
+          if (doi && !seenDoi.has(doi)) {
+            seenDoi.add(doi);
+            items.push({ kind: "doi", value: doi });
+          }
+        }
+
+        if (journalIdx >= 0 && cols[journalIdx]) {
+          const name = cols[journalIdx];
+          if (!extractDOI(name)) {
+            const key = normalizeTitle(name);
+            if (key && !seenVenue.has(key)) {
+              seenVenue.add(key);
+              items.push({ kind: "venue", value: name });
+            }
+          }
+        }
       }
-      return allDois;
+      return items;
     }
 
-    const dois = [];
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(sep);
-      if (cols[doiIdx]) {
-        const doi = extractDOI(cols[doiIdx].replace(/["']/g, "").trim());
-        if (doi) dois.push(doi);
+    for (let i = 0; i < lines.length; i++) {
+      const doi = extractDOI(lines[i].replace(/["']/g, "").trim());
+      if (doi && !seenDoi.has(doi)) {
+        seenDoi.add(doi);
+        items.push({ kind: "doi", value: doi });
       }
     }
-    return dois;
+    return items;
   }
 
-  /** Same DOI list as Rank Papers: pasted text or CSV file. */
-  async function getDoisFromActiveTab() {
     const activeTab = document.querySelector(".tab-btn.active").dataset.tab;
     if (activeTab === "text") {
-      return [...new Set(parseDOIsFromText(doiInput.value))];
+      return parseItemsFromText(doiInput.value);
     }
     const file = csvFileInput.files[0];
     if (!file) return [];
-    return [...new Set(await parseDOIsFromCSV(file))];
+    return parseItemsFromCSV(file);
   }
 
   // ---- CrossRef API ----
@@ -250,6 +326,22 @@
       (dp(work["published-online"]) || [])[0] ||
       (dp(work.created) || [])[0];
     return y != null ? y : "";
+  }
+
+  function buildPaperFromVenueName(name) {
+    const s = name.trim();
+    return {
+      doi: "",
+      title: "—",
+      source: s,
+      issn: [],
+      type: "listed-name",
+      authors: "",
+      abstract: "",
+      year: "",
+      publisher: "",
+      citations: 0,
+    };
   }
 
   async function fetchWorkByDoi(doi) {
@@ -326,6 +418,14 @@
     return s;
   }
 
+  function venueTitleVariants(name) {
+    const s = String(name || "").trim();
+    if (!s) return [];
+    const n = normalizeTitle(s);
+    const stripped = normalizeTitle(s.replace(/^the\s+/i, ""));
+    return n === stripped ? [n] : [...new Set([n, stripped].filter(Boolean))];
+  }
+
   function lookupJournalRanking(issns, sourceName) {
     if (!scimagoData) return { ranking: "Not Ranked", system: "SCImago" };
 
@@ -344,13 +444,14 @@
     }
 
     if (sourceName) {
-      const norm = normalizeTitle(sourceName);
-      const entry = scimagoData.by_title[norm];
-      if (entry) {
-        return {
-          ranking: entry.q === "-" ? "Not Ranked" : entry.q,
-          system: "SCImago",
-        };
+      for (const norm of venueTitleVariants(sourceName)) {
+        const entry = scimagoData.by_title[norm];
+        if (entry) {
+          return {
+            ranking: entry.q === "-" ? "Not Ranked" : entry.q,
+            system: "SCImago",
+          };
+        }
       }
     }
 
@@ -372,16 +473,18 @@
       };
     }
 
-    const norm = normalizeTitle(sourceName);
-    const titleEntry = coreData.by_title[norm];
-    if (titleEntry) {
-      return {
-        ranking: titleEntry.r,
-        system: "CORE",
-        matchedAcronym: titleEntry.a,
-      };
+    for (const norm of venueTitleVariants(sourceName)) {
+      const titleEntry = coreData.by_title[norm];
+      if (titleEntry) {
+        return {
+          ranking: titleEntry.r,
+          system: "CORE",
+          matchedAcronym: titleEntry.a,
+        };
+      }
     }
 
+    const norm = normalizeTitle(sourceName);
     for (const [acronym, entry] of Object.entries(coreData.by_acronym)) {
       if (
         norm.includes(acronym.toLowerCase()) ||
@@ -435,9 +538,9 @@
   // ---- Main Flow ----
 
   async function handleRank() {
-    const unique = await getDoisFromActiveTab();
-    if (!unique.length) {
-      alert("No valid DOIs found. Please check your input.");
+    const items = await getItemsFromActiveTab();
+    if (!items.length) {
+      alert("No DOIs or venue names found. Paste one per line or upload a CSV.");
       return;
     }
 
@@ -448,13 +551,18 @@
     results = [];
 
     let completed = 0;
-    const total = unique.length;
+    const total = items.length;
 
-    const tasks = unique.map((doi) => async () => {
-      const paper = await fetchWorkByDoi(doi);
+    const tasks = items.map((item) => async () => {
+      let paper;
+      if (item.kind === "doi") {
+        paper = await fetchWorkByDoi(item.value);
+      } else {
+        paper = buildPaperFromVenueName(item.value);
+      }
       const ranking = determineRanking(paper);
       completed++;
-      setProgress(completed, total, "Resolving DOIs");
+      setProgress(completed, total, "Looking up rankings");
       return { ...paper, ...ranking };
     });
 
@@ -471,9 +579,13 @@
   }
 
   async function handleMetadataSheet() {
-    const unique = await getDoisFromActiveTab();
-    if (!unique.length) {
-      alert("No valid DOIs found. Please check your input.");
+    const items = await getItemsFromActiveTab();
+    const dois = items.filter((x) => x.kind === "doi").map((x) => x.value);
+    const uniqueDois = [...new Set(dois)];
+    if (!uniqueDois.length) {
+      alert(
+        "Download Abstracts needs at least one DOI. Journal-name-only rows are skipped for this export."
+      );
       return;
     }
 
@@ -484,9 +596,9 @@
     metadataResults = [];
 
     let completed = 0;
-    const total = unique.length;
+    const total = uniqueDois.length;
 
-    const tasks = unique.map((doi) => async () => {
+    const tasks = uniqueDois.map((doi) => async () => {
       const paper = await fetchWorkByDoi(doi);
       const ranking = determineRanking(paper);
       completed++;
@@ -531,6 +643,7 @@
 
   function getTypeLabel(type) {
     if (!type) return "-";
+    if (type === "listed-name") return "Listed name";
     if (type.includes("journal")) return "Journal";
     if (type.includes("proceedings") || type.includes("conference"))
       return "Conference";
@@ -548,17 +661,26 @@
     resultsBody.innerHTML = "";
     results.forEach((r, i) => {
       const tr = document.createElement("tr");
-      const doiLink = `https://doi.org/${encodeURIComponent(r.doi)}`;
+      const doiHtml = r.doi
+        ? (() => {
+            const doiLink = `https://doi.org/${encodeURIComponent(r.doi)}`;
+            return `<td class="doi-cell"><a href="${doiLink}" target="_blank" rel="noopener">${escapeHtml(r.doi)}</a></td>`;
+          })()
+        : `<td class="doi-cell"><span style="color:var(--color-text-muted)">—</span></td>`;
       const displayRanking = r.ranking || "Not Ranked";
       const systemLabel = r.system && r.system !== "-" ? ` (${r.system})` : "";
 
+      const titleForCell =
+        r.type === "listed-name"
+          ? r.source || "—"
+          : r.title || r.doi || "—";
       tr.innerHTML = `
         <td>${i + 1}</td>
-        <td class="title-cell">${clampHtml(r.title || r.doi, ABSTRACT_CLIP_LENGTH)}</td>
+        <td class="title-cell">${clampHtml(titleForCell, ABSTRACT_CLIP_LENGTH)}</td>
         <td>${escapeHtml(r.source || "-")}</td>
         <td>${getTypeLabel(r.type)}</td>
         <td><span class="badge ${getBadgeClass(displayRanking)}">${escapeHtml(displayRanking)}</span>${systemLabel}</td>
-        <td class="doi-cell"><a href="${doiLink}" target="_blank" rel="noopener">${escapeHtml(r.doi)}</a></td>
+        ${doiHtml}
       `;
       resultsBody.appendChild(tr);
     });

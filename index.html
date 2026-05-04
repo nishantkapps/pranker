@@ -27,15 +27,15 @@
   <main>
     <section class="input-section">
       <div class="input-tabs">
-        <button type="button" class="tab-btn active" data-tab="text">Paste DOIs</button>
+        <button type="button" class="tab-btn active" data-tab="text">Paste DOIs or journals</button>
         <button type="button" class="tab-btn" data-tab="csv">Upload CSV</button>
       </div>
 
       <div class="tab-content active" id="tab-text">
         <textarea
           id="doi-input"
-          placeholder="Enter DOIs, one per line. Accepts full URLs or plain DOIs.&#10;&#10;Examples:&#10;https://doi.org/10.1145/3292500.3330919&#10;10.1038/s41586-020-2649-2&#10;doi.org/10.1109/TSE.2020.3000662"
-          rows="8"
+          placeholder="One entry per line (or comma-separated). DOIs (URL or plain) are resolved via CrossRef; any other line is treated as a journal or venue name and matched against bundled SCImago / CORE data.&#10;&#10;DOI examples:&#10;https://doi.org/10.1145/3292500.3330919&#10;10.1038/s41586-020-2649-2&#10;&#10;Name examples:&#10;Nature&#10;IEEE Transactions on Software Engineering&#10;NeurIPS"
+          rows="10"
         ></textarea>
       </div>
 
@@ -43,7 +43,7 @@
         <div class="file-upload" id="file-drop-zone">
           <input type="file" id="csv-file" accept=".csv,.txt" hidden>
           <p>Drag &amp; drop a CSV file here, or <button type="button" id="browse-btn">browse</button></p>
-          <p class="hint">CSV should have a column named <code>doi</code></p>
+          <p class="hint">Include a <code>doi</code> column and/or a <code>journal</code> (or <code>journal_name</code>, <code>venue</code>) column.</p>
           <p class="file-name" id="file-name"></p>
         </div>
       </div>
@@ -54,9 +54,8 @@
         <button type="button" id="clear-btn" class="secondary-btn">Clear</button>
       </div>
       <p class="hint action-hint">
-        <strong>Rank Papers</strong> looks up journal/conference rankings.
-        <strong>Download Abstracts</strong> fetches title, abstract, year, publisher, ranking and citation count — exports as a CSV that opens in Excel.
-        Both use the same DOI list via <a href="https://www.crossref.org/" target="_blank" rel="noopener">CrossRef</a>.
+        <strong>Rank Papers</strong> looks up journal/conference rankings from DOIs (CrossRef) or from names (local SCImago / CORE only).
+        <strong>Download Abstracts</strong> needs at least one DOI — it fetches title, abstract, year, publisher, ranking and citations from CrossRef.
       </p>
     </section>
 
@@ -128,6 +127,6 @@
     </p>
   </footer>
 
-  <script src="js/app.js?v=11"></script>
+  <script src="js/app.js?v=12"></script>
 </body>
 </html>
