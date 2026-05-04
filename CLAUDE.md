@@ -44,6 +44,14 @@ python scripts/build_core.py
 python scripts/scopus_literature_venues.py "your keywords here"
 python scripts/scopus_literature_venues.py --query-expr 'TITLE-ABS-KEY(robot) AND PUBYEAR > 2020' --journals-only -o venues.tsv
 
+# Scopus from the Find Venues *website* (GitHub Pages): deploy a tiny HTTPS proxy; the API key never ships in static JS.
+# On the server:
+#   export SCOPUS_API_KEY=...
+#   export SCOPUS_PROXY_ALLOW_ORIGIN='https://YOURNAME.github.io'   # CORS; use * only for quick tests
+#   export SCOPUS_PROXY_SECRET='random-long-string'                  # optional; same value in browser “Shared secret”
+#   python server/scopus_proxy.py                                  # default PORT=8787; use HTTPS reverse proxy in prod
+# In the browser (Find Venues → Scopus proxy): paste the public URL (https://…, root or full …/literature-venues).
+
 # Local dev server
 python -m http.server 8000
 

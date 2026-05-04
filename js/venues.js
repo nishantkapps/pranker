@@ -21,6 +21,7 @@
   const OPENALEX_MAILTO = "pranker-tool@users.noreply.github.com";
   const LITERATURE_TOP_N = 30;
   const OPENALEX_TIMEOUT_MS = 25000;
+  const SCOPUS_PROXY_LS_KEY = "pranker_scopus_proxy_v1";
 
   const TODAY = new Date();
   TODAY.setHours(0, 0, 0, 0);
@@ -98,6 +99,15 @@
   const aiSaveBtn        = document.getElementById("ai-save-btn");
   const aiDisableBtn     = document.getElementById("ai-disable-btn");
 
+  const scopusProxySettingsBtn = document.getElementById("scopus-proxy-settings-btn");
+  const scopusProxyPanel       = document.getElementById("scopus-proxy-panel");
+  const scopusProxyUrlInput    = document.getElementById("scopus-proxy-url");
+  const scopusProxySecretInput = document.getElementById("scopus-proxy-secret");
+  const scopusProxyJournalsChk = document.getElementById("scopus-proxy-journals-only");
+  const scopusProxySaveBtn     = document.getElementById("scopus-proxy-save-btn");
+  const scopusProxyClearBtn    = document.getElementById("scopus-proxy-clear-btn");
+  const scopusProxyStatusDot   = document.getElementById("scopus-proxy-status-dot");
+
   // ---- AI settings helpers ----
 
   const LS_AI = "pranker_ai";
@@ -164,6 +174,92 @@
       saveAiSettings(s);
       updateAiDot();
       aiSettingsPanel.hidden = true;
+    });
+  }
+
+  function loadScopusProxySettings() {
+    try {
+      const raw = localStorage.getItem(SCOPUS_PROXY_LS_KEY);
+      if (!raw) return { url: "", secret: "", journalsOnly: false };
+      const o = JSON.parse(raw);
+      return {
+        url: String(o.url || "").trim(),
+        secret: String(o.secret || "").trim(),
+        journalsOnly: !!o.journalsOnly,
+      };
+    } catch {
+      return { url: "", secret: "", journalsOnly: false };
+    }
+  }
+
+  function saveScopusProxySettings(obj) {
+    localStorage.setItem(
+      SCOPUS_PROXY_LS_KEY,
+      JSON.stringify({
+        url: String(obj.url || "").trim(),
+        secret: String(obj.secret || "").trim(),
+        journalsOnly: !!obj.journalsOnly,
+      })
+    );
+  }
+
+  function isScopusProxyConfigured() {
+    return loadScopusProxySettings().url.length > 0;
+  }
+
+  function applyScopusProxyToUI() {
+    const s = loadScopusProxySettings();
+    if (scopusProxyUrlInput) scopusProxyUrlInput.value = s.url;
+    if (scopusProxySecretInput) scopusProxySecretInput.value = s.secret;
+    if (scopusProxyJournalsChk) scopusProxyJournalsChk.checked = s.journalsOnly;
+    updateScopusProxyDot();
+    updateLiteratureVenuesBtnTitle();
+  }
+
+  function updateScopusProxyDot() {
+    if (!scopusProxyStatusDot) return;
+    const on = isScopusProxyConfigured();
+    scopusProxyStatusDot.className = `ai-dot ${on ? "ai-dot-on" : "ai-dot-off"}`;
+    if (scopusProxySettingsBtn) {
+      scopusProxySettingsBtn.title = on
+        ? "Scopus proxy is configured — click to change"
+        : "Optional: self-hosted Scopus HTTPS proxy (Elsevier API key stays on the server).";
+    }
+  }
+
+  function updateLiteratureVenuesBtnTitle() {
+    if (!literatureVenuesBtn) return;
+    literatureVenuesBtn.title = isScopusProxyConfigured()
+      ? "Top-cited venues via your Scopus proxy (Elsevier). Configure under ‘Scopus proxy’."
+      : "Uses OpenAlex (public); not Elsevier Scopus. Optional Scopus via self-hosted proxy.";
+  }
+
+  function setupScopusProxySettings() {
+    if (
+      !scopusProxySettingsBtn
+      || !scopusProxyPanel
+      || !scopusProxySaveBtn
+      || !scopusProxyClearBtn
+    ) {
+      return;
+    }
+    applyScopusProxyToUI();
+
+    scopusProxySettingsBtn.addEventListener("click", () => {
+      scopusProxyPanel.hidden = !scopusProxyPanel.hidden;
+    });
+    scopusProxySaveBtn.addEventListener("click", () => {
+      saveScopusProxySettings({
+        url: scopusProxyUrlInput.value.trim(),
+        secret: scopusProxySecretInput.value.trim(),
+        journalsOnly: scopusProxyJournalsChk.checked,
+      });
+      applyScopusProxyToUI();
+      scopusProxyPanel.hidden = true;
+    });
+    scopusProxyClearBtn.addEventListener("click", () => {
+      localStorage.removeItem(SCOPUS_PROXY_LS_KEY);
+      applyScopusProxyToUI();
     });
   }
 
@@ -278,6 +374,7 @@
 
   async function init() {
     setupAiSettings();
+    setupScopusProxySettings();
     setupEventListeners();
     // Load ranking data + deadline data in parallel; don't block the UI
     Promise.allSettled([loadRankingData(), loadDeadlineData(), ensureVenueExtrasLoaded()]).then(() => {
@@ -408,6 +505,7 @@
     const hasTopic = topicInput.value.trim().length > 0;
     findBtn.disabled = !hasTopic || (!coreData && !scimagoData);
     literatureVenuesBtn.disabled = !hasTopic;
+    updateLiteratureVenuesBtnTitle();
   }
 
   // ---- Search engine: stemming + prefix matching ----
@@ -907,6 +1005,76 @@
     return { works, venues };
   }
 
+  function literatureScopusProxyPostUrl(raw) {
+    const u = String(raw || "").trim().replace(/\/+$/, "");
+    if (!u) return "";
+    if (/literature-venues$/i.test(u)) return u;
+    return `${u}/literature-venues`;
+  }
+
+  async function fetchLiteratureFromScopusProxy(keywords) {
+    const sp = loadScopusProxySettings();
+    const postUrl = literatureScopusProxyPostUrl(sp.url);
+    if (!postUrl) return { works: [], venues: [], source: "scopus", queryUsed: "" };
+
+    const body = {
+      query: keywords.trim(),
+      queryExpr: null,
+      topWorks: LITERATURE_TOP_N,
+      topVenues: LITERATURE_TOP_N,
+      journalsOnly: !!sp.journalsOnly,
+      sort: "-citedby-count",
+      view: "STANDARD",
+    };
+    const headers = { "Content-Type": "application/json" };
+    if (sp.secret) headers["X-Pranker-Scopus-Secret"] = sp.secret;
+
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), OPENALEX_TIMEOUT_MS);
+    try {
+      const resp = await fetch(postUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+      const rawText = await resp.text();
+      let data;
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        throw new Error(`Proxy returned non-JSON (HTTP ${resp.status}): ${rawText.slice(0, 180)}`);
+      }
+      if (!resp.ok) {
+        throw new Error(data && data.error ? data.error : `Proxy HTTP ${resp.status}`);
+      }
+      if (data.error) throw new Error(String(data.error));
+      const works = Array.isArray(data.works) ? data.works : [];
+      const venues = Array.isArray(data.venues) ? data.venues : [];
+      return {
+        works,
+        venues,
+        source: data.source || "scopus",
+        queryUsed: data.query_used || "",
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function fetchLiteratureVenuesUnified(keywords) {
+    if (isScopusProxyConfigured()) {
+      return fetchLiteratureFromScopusProxy(keywords);
+    }
+    const r = await fetchLiteratureVenueNamesFromOpenAlex(keywords);
+    return {
+      works: r.works,
+      venues: r.venues,
+      source: "openalex",
+      queryUsed: keywords.trim(),
+    };
+  }
+
   function lookupScimagoTitleFuzzyLiterature(sourceName) {
     if (!scimagoData?.by_issn || !sourceName) return null;
     const q = venueLookupNormTitle(sourceName);
@@ -1098,30 +1266,48 @@
     literatureVenuesSection.hidden = false;
     literatureVenuesBody.innerHTML = "";
     literatureVenuesCount.textContent = "";
-    literatureVenuesNote.textContent = "Loading rankings and OpenAlex…";
+    literatureVenuesNote.textContent = isScopusProxyConfigured()
+      ? "Loading rankings and your Scopus proxy…"
+      : "Loading rankings and OpenAlex…";
     literatureVenueRows = [];
 
     try {
       await loadRankingData();
       await ensureVenueExtrasLoaded();
 
-      literatureVenuesNote.textContent = "Searching OpenAlex…";
-      const { works, venues } = await fetchLiteratureVenueNamesFromOpenAlex(q);
+      literatureVenuesNote.textContent = isScopusProxyConfigured()
+        ? "Searching Scopus (via your proxy)…"
+        : "Searching OpenAlex…";
+      const { works, venues, source, queryUsed } = await fetchLiteratureVenuesUnified(q);
       literatureVenueRows = venues.map(({ name, issns, citedBy }) =>
         resolveLiteratureVenue(name, issns, citedBy)
       );
 
-      let noteHtml =
-        `Elsevier <strong>Scopus</strong> cannot be queried from this browser-only app without an institutional API key. ` +
-        `We use the public <a href="https://openalex.org" target="_blank" rel="noopener">OpenAlex</a> API instead: ` +
-        `the top <strong>${LITERATURE_TOP_N}</strong> works matching your words, sorted by citation count, ` +
-        `then each work’s host venue is listed once (deduplicated), in citation order. ` +
-        `Rankings are resolved against the same <strong>CORE</strong> / <strong>SCImago</strong> data as Find Venues. ` +
-        `Retrieved <strong>${works.length}</strong> works → <strong>${venues.length}</strong> distinct venues.`;
+      let noteHtml;
+      if (source === "scopus") {
+        const qu = escapeHtml(queryUsed || "");
+        noteHtml =
+          `Results from your self-hosted <strong>Scopus</strong> proxy (Elsevier index), sorted by citation count. ` +
+          `Scopus query sent: <code style="font-size:0.9em">${qu}</code>. ` +
+          `We walk up to <strong>${LITERATURE_TOP_N}</strong> papers, then list distinct source titles (deduplicated), ` +
+          `and resolve ranks against bundled <strong>CORE</strong> / <strong>SCImago</strong> data. ` +
+          `Retrieved <strong>${works.length}</strong> works → <strong>${venues.length}</strong> distinct venues.`;
+      } else {
+        noteHtml =
+          `Elsevier <strong>Scopus</strong> cannot be queried from the browser without your own infrastructure. ` +
+          `Either configure a <strong>Scopus proxy</strong> (Elsevier key stays on the server) or we use the public ` +
+          `<a href="https://openalex.org" target="_blank" rel="noopener">OpenAlex</a> API: ` +
+          `the top <strong>${LITERATURE_TOP_N}</strong> works matching your words, sorted by citation count, ` +
+          `then each work’s host venue is listed once (deduplicated), in citation order. ` +
+          `Rankings are resolved against the same <strong>CORE</strong> / <strong>SCImago</strong> data as Find Venues. ` +
+          `Retrieved <strong>${works.length}</strong> works → <strong>${venues.length}</strong> distinct venues.`;
+      }
 
       if (works.length && !venues.length) {
         noteHtml +=
-          " <strong>No host venues</strong> were attached to those works in OpenAlex.";
+          source === "scopus"
+            ? " <strong>No source titles</strong> were returned for those works."
+            : " <strong>No host venues</strong> were attached to those works in OpenAlex.";
       }
       literatureVenuesNote.innerHTML = noteHtml;
 
@@ -1130,10 +1316,11 @@
     } catch (e) {
       literatureVenueRows = [];
       literatureVenuesBody.innerHTML = "";
+      const src = isScopusProxyConfigured() ? "Scopus proxy" : "OpenAlex";
       literatureVenuesNote.textContent =
         e.name === "AbortError"
           ? "Request timed out. Try a shorter query or check your connection."
-          : `Could not reach OpenAlex: ${e.message || e}`;
+          : `Could not reach ${src}: ${e.message || e}`;
     } finally {
       updateFindBtnState();
     }
