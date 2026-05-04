@@ -77,13 +77,13 @@
   const searchHint       = document.getElementById("search-hint");
   const literatureVenuesBtn     = document.getElementById("literature-venues-btn");
   const literatureVenuesSection = document.getElementById("literature-venues-section");
-  const literatureVenuesList    = document.getElementById("literature-venues-list");
+  const literatureVenuesBody    = document.getElementById("literature-venues-body");
   const literatureVenuesNote    = document.getElementById("literature-venues-note");
   const literatureVenuesCount   = document.getElementById("literature-venues-count");
   const literatureVenuesCopyBtn = document.getElementById("literature-venues-copy-btn");
 
-  /** Names from last OpenAlex venue run (for copy). */
-  let literatureVenueNames = [];
+  /** Resolved venue rows from last OpenAlex literature run (for table + copy). */
+  let literatureVenueRows = [];
 
   // AI settings DOM refs
   const aiSettingsBtn    = document.getElementById("ai-settings-btn");
@@ -400,6 +400,7 @@
     venuesExportBtn.addEventListener("click", handleVenuesExport);
     deadlinesExportBtn.addEventListener("click", handleDeadlinesExport);
     venuesBody.addEventListener("click", onSeeMoreClick);
+    literatureVenuesBody.addEventListener("click", onSeeMoreClick);
     deadlinesBody.addEventListener("click", onSeeMoreClick);
   }
 
@@ -513,6 +514,15 @@
     ].map((el) => el.value);
   }
 
+  /** Lowercase, strip punctuation, collapse spaces — matches Python build_scimago / build_core. */
+  function venueLookupNormTitle(s) {
+    return (s || "").toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
+  }
+
+  function venueLookupNormTitleNoThe(s) {
+    return venueLookupNormTitle(s).replace(/^the\s+/, "");
+  }
+
   // ---- Main handler ----
 
   async function handleFind() {
@@ -565,10 +575,10 @@
     const foundAcronyms = new Set(kwResults.map((v) => v.acronym.toUpperCase()));
     const aiExtra = [];
 
-    // Normalize for lookup: lowercase, strip punctuation, collapse spaces.
     // Also try stripping a leading "the " since some sources include it and others don't.
-    const normTitle = (s) => (s || "").toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
-    const normTitleNoThe = (s) => normTitle(s).replace(/^the\s+/, "");
+    const normTitle = venueLookupNormTitle;
+    const normTitleNoThe = venueLookupNormTitleNoThe;
+
     const wantConference = types.includes("conference");
     const wantJournal    = types.includes("journal");
 
@@ -806,6 +816,50 @@
     return "";
   }
 
+  function normalizeIssnKeyLiterature(issn) {
+    if (!issn) return "";
+    let s = String(issn).toUpperCase().trim().replace(/[^\dX-]/g, "");
+    if (/^\d{8}$/.test(s)) {
+      return `${s.slice(0, 4)}-${s.slice(4)}`;
+    }
+    return s;
+  }
+
+  function collectIssnsFromOpenAlexSource(src) {
+    if (!src || typeof src !== "object") return [];
+    const out = [];
+    if (src.issn_l) out.push(src.issn_l);
+    if (Array.isArray(src.issn)) {
+      for (const x of src.issn) {
+        if (x) out.push(x);
+      }
+    }
+    return out;
+  }
+
+  /** Host display name plus ISSNs from OpenAlex locations (for SCImago lookup). */
+  function extractVenueMetaFromOpenAlexWork(w) {
+    const name = extractVenueNameFromOpenAlexWork(w);
+    const keys = new Set();
+    const issns = [];
+    const addLoc = (loc) => {
+      if (!loc || typeof loc !== "object") return;
+      for (const raw of collectIssnsFromOpenAlexSource(loc.source)) {
+        const k = normalizeIssnKeyLiterature(raw);
+        if (k && !keys.has(k)) {
+          keys.add(k);
+          issns.push(k);
+        }
+      }
+    };
+    if (w.primary_location) addLoc(w.primary_location);
+    if (w.best_oa_location) addLoc(w.best_oa_location);
+    if (Array.isArray(w.locations)) {
+      for (const loc of w.locations) addLoc(loc);
+    }
+    return { name, issns };
+  }
+
   async function fetchJsonWithTimeout(url, ms) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), ms);
@@ -839,17 +893,199 @@
     const seen = new Set();
     const venues = [];
     for (const w of works) {
-      const name = extractVenueNameFromOpenAlexWork(w);
+      const { name, issns } = extractVenueMetaFromOpenAlexWork(w);
       if (!name || name.length < 2) continue;
       const key = normalizeForMatch(name);
       if (!key || seen.has(key)) continue;
       seen.add(key);
       venues.push({
         name,
+        issns,
         citedBy: typeof w.cited_by_count === "number" ? w.cited_by_count : 0,
       });
     }
     return { works, venues };
+  }
+
+  function lookupScimagoTitleFuzzyLiterature(sourceName) {
+    if (!scimagoData?.by_issn || !sourceName) return null;
+    const q = venueLookupNormTitle(sourceName);
+    if (q.length < 8) return null;
+    let best = null;
+    let bestExtra = Infinity;
+    for (const entry of Object.values(scimagoData.by_issn)) {
+      const t = venueLookupNormTitle(entry.t || "");
+      if (t.length < q.length) continue;
+      if (t.includes(q)) {
+        const extra = t.length - q.length;
+        if (extra < bestExtra) {
+          bestExtra = extra;
+          best = entry;
+        }
+      } else if (q.includes(t) && t.length >= 12) {
+        const extra = q.length - t.length;
+        if (extra < bestExtra) {
+          bestExtra = extra;
+          best = entry;
+        }
+      }
+    }
+    return best;
+  }
+
+  function lookupScimagoKeywordFallbackLiterature(sourceName) {
+    if (!scimagoData?.by_issn || !sourceName) return null;
+    const q = venueLookupNormTitle(sourceName);
+    const words = q.split(/\s+/).filter((w) => w.length >= 4);
+    if (words.length < 2) return null;
+    let best = null;
+    let bestExtra = Infinity;
+    for (const entry of Object.values(scimagoData.by_issn)) {
+      const t = venueLookupNormTitle(entry.t || "");
+      if (t.length < q.length || !words.every((w) => t.includes(w))) continue;
+      const extra = t.length - q.length;
+      if (extra < bestExtra) {
+        bestExtra = extra;
+        best = entry;
+      }
+    }
+    return best;
+  }
+
+  function lookupScimagoJournalEntryByTitleLiterature(sourceName) {
+    if (!scimagoData || !sourceName) return null;
+    for (const nt of [venueLookupNormTitle(sourceName), venueLookupNormTitleNoThe(sourceName)]) {
+      const bt = scimagoData.by_title?.[nt];
+      if (bt && bt.i && scimagoData.by_issn?.[bt.i]) return scimagoData.by_issn[bt.i];
+    }
+    return (
+      lookupScimagoTitleFuzzyLiterature(sourceName)
+      || lookupScimagoKeywordFallbackLiterature(sourceName)
+    );
+  }
+
+  function lookupCoreConferenceByHostName(displayName) {
+    if (!coreData || !displayName) return null;
+    const n = venueLookupNormTitle(displayName);
+    const nNo = venueLookupNormTitleNoThe(displayName);
+    const hit = coreData.by_title?.[n] || coreData.by_title?.[nNo];
+    if (hit) {
+      const acr = (hit.a || "").toUpperCase().trim();
+      const entry = (acr && coreData.by_acronym?.[acr]) || {};
+      return {
+        acronym: acr,
+        t: entry.t || displayName,
+        r: hit.r,
+        id: entry.id,
+        dblp: entry.dblp,
+        description: entry.description,
+      };
+    }
+    const norm = n;
+    for (const [acronym, entry] of Object.entries(coreData.by_acronym || {})) {
+      const et = venueLookupNormTitle(entry.t || "");
+      if (
+        norm.includes(acronym.toLowerCase())
+        || (et && (et.includes(norm) || norm.includes(et)))
+      ) {
+        return {
+          acronym: acronym.toUpperCase(),
+          t: entry.t,
+          r: entry.r,
+          id: entry.id,
+          dblp: entry.dblp,
+          description: entry.description,
+        };
+      }
+    }
+    return null;
+  }
+
+  function rankingOrDash(q) {
+    if (!q || q === "-") return "—";
+    return q;
+  }
+
+  function buildScimagoVenueRowFromIssnEntry(e, openAlexName, citeNote) {
+    const title = (e.t && e.t.trim()) || openAlexName;
+    const ranking = rankingOrDash(e.q);
+    const desc = citeNote.trim();
+    return {
+      acronym: "",
+      title,
+      ranking,
+      system: "SCImago",
+      type: "Journal",
+      link: `https://www.scimagojr.com/journalsearch.php?q=${encodeURIComponent(title)}`,
+      dblpUrl: null,
+      description: desc || "—",
+      score: 0,
+      aiSuggested: false,
+    };
+  }
+
+  function buildCoreVenueRowFromLookup(coreRow, openAlexName, citeNote) {
+    const acr = coreRow.acronym;
+    const portalLink = coreRow.id
+      ? `https://portal.core.edu.au/conf-ranks/${coreRow.id}/`
+      : `https://portal.core.edu.au/conf-ranks/?search=${encodeURIComponent(acr)}&by=acronym`;
+    const descBody =
+      (coreRow.description && String(coreRow.description).trim())
+      || getConfDescriptionFallback(acr);
+    const desc = (citeNote + (descBody || "")).trim() || citeNote.trim() || "—";
+    return {
+      acronym: acr,
+      title: coreRow.t || openAlexName,
+      ranking: coreRow.r,
+      system: "CORE",
+      type: "Conference",
+      link: portalLink,
+      dblpUrl: coreRow.dblp || null,
+      description: desc,
+      score: 0,
+      aiSuggested: false,
+    };
+  }
+
+  /**
+   * Prefer SCImago when ISSNs match, else CORE conference by title/acronym,
+   * else SCImago title / fuzzy / keyword (mirrors app.js journal heuristics).
+   */
+  function resolveLiteratureVenue(openAlexName, issns, citedBy) {
+    const citeNote =
+      citedBy != null ? `Source work ≈${citedBy} citations (OpenAlex). ` : "";
+
+    for (const k of issns || []) {
+      if (!k || !scimagoData?.by_issn?.[k]) continue;
+      const e = scimagoData.by_issn[k];
+      return buildScimagoVenueRowFromIssnEntry(e, openAlexName, citeNote);
+    }
+
+    const coreHit = lookupCoreConferenceByHostName(openAlexName);
+    if (coreHit) {
+      return buildCoreVenueRowFromLookup(coreHit, openAlexName, citeNote);
+    }
+
+    const sciEntry = lookupScimagoJournalEntryByTitleLiterature(openAlexName);
+    if (sciEntry) {
+      return buildScimagoVenueRowFromIssnEntry(sciEntry, openAlexName, citeNote);
+    }
+
+    const tail =
+      citeNote.trim()
+      || "Host venue from OpenAlex — not found in bundled CORE/SCImago data.";
+    return {
+      acronym: "",
+      title: openAlexName,
+      ranking: "—",
+      system: "—",
+      type: "Other",
+      link: "",
+      dblpUrl: null,
+      description: tail,
+      score: 0,
+      aiSuggested: false,
+    };
   }
 
   async function handleLiteratureVenues() {
@@ -860,34 +1096,40 @@
     }
     literatureVenuesBtn.disabled = true;
     literatureVenuesSection.hidden = false;
-    literatureVenuesList.innerHTML = "";
+    literatureVenuesBody.innerHTML = "";
     literatureVenuesCount.textContent = "";
-    literatureVenuesNote.textContent = "Searching OpenAlex…";
+    literatureVenuesNote.textContent = "Loading rankings and OpenAlex…";
+    literatureVenueRows = [];
 
     try {
-      const { works, venues } = await fetchLiteratureVenueNamesFromOpenAlex(q);
-      literatureVenueNames = venues.map((v) => v.name);
+      await loadRankingData();
+      await ensureVenueExtrasLoaded();
 
-      literatureVenuesNote.innerHTML =
+      literatureVenuesNote.textContent = "Searching OpenAlex…";
+      const { works, venues } = await fetchLiteratureVenueNamesFromOpenAlex(q);
+      literatureVenueRows = venues.map(({ name, issns, citedBy }) =>
+        resolveLiteratureVenue(name, issns, citedBy)
+      );
+
+      let noteHtml =
         `Elsevier <strong>Scopus</strong> cannot be queried from this browser-only app without an institutional API key. ` +
         `We use the public <a href="https://openalex.org" target="_blank" rel="noopener">OpenAlex</a> API instead: ` +
         `the top <strong>${LITERATURE_TOP_N}</strong> works matching your words, sorted by citation count, ` +
-        `then each work’s host venue (journal, conference proceedings, etc.) is listed once, in citation order. ` +
+        `then each work’s host venue is listed once (deduplicated), in citation order. ` +
+        `Rankings are resolved against the same <strong>CORE</strong> / <strong>SCImago</strong> data as Find Venues. ` +
         `Retrieved <strong>${works.length}</strong> works → <strong>${venues.length}</strong> distinct venues.`;
 
-      for (const row of venues) {
-        const li = document.createElement("li");
-        li.textContent = row.name;
-        literatureVenuesList.appendChild(li);
-      }
-      literatureVenuesCount.textContent = `(${venues.length} venues)`;
-
       if (works.length && !venues.length) {
-        literatureVenuesNote.textContent +=
-          " No host venues were attached to those works in OpenAlex.";
+        noteHtml +=
+          " <strong>No host venues</strong> were attached to those works in OpenAlex.";
       }
+      literatureVenuesNote.innerHTML = noteHtml;
+
+      renderLiteratureVenuesTable();
+      literatureVenuesCount.textContent = `(${literatureVenueRows.length} venues)`;
     } catch (e) {
-      literatureVenueNames = [];
+      literatureVenueRows = [];
+      literatureVenuesBody.innerHTML = "";
       literatureVenuesNote.textContent =
         e.name === "AbortError"
           ? "Request timed out. Try a shorter query or check your connection."
@@ -898,11 +1140,15 @@
   }
 
   function handleLiteratureVenuesCopy() {
-    if (!literatureVenueNames.length) return;
-    const text = literatureVenueNames.join("\n");
+    if (!literatureVenueRows.length) return;
+    const header = ["Name", "Acronym", "Type", "Ranking", "System"].join("\t");
+    const lines = literatureVenueRows.map((v) =>
+      [v.title, v.acronym || "", v.type, v.ranking, v.system].join("\t")
+    );
+    const text = [header, ...lines].join("\n");
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(
-        () => alert("Copied venue list to the clipboard."),
+        () => alert("Copied venue table (TSV) to the clipboard."),
         () => fallbackCopyVenueList(text)
       );
     } else {
@@ -917,7 +1163,7 @@
     ta.select();
     try {
       document.execCommand("copy");
-      alert("Copied venue list to the clipboard.");
+      alert("Copied venue table (TSV) to the clipboard.");
     } catch {
       prompt("Copy this text:", text);
     }
@@ -1144,12 +1390,46 @@
       );
     }
     if (v.link && !/^https?:\/\/([^/]*\.)?dblp\.org/i.test(v.link)) {
-      const lbl = v.type === "Conference" ? "CORE ↗" : "SCImago ↗";
+      const lbl =
+        v.type === "Conference"
+          ? "CORE ↗"
+          : v.type === "Journal"
+            ? "SCImago ↗"
+            : "Link ↗";
       parts.push(
         `<a href="${escapeHtml(v.link)}" target="_blank" rel="noopener">${lbl}</a>`
       );
     }
     return parts.length ? parts.join(" · ") : "—";
+  }
+
+  function appendVenueResultRow(tbody, v, i) {
+    const info = getConferenceDeadlineRow(v);
+    const nextDate = info ? info.date : "—";
+    const location = info ? (info.location || "—") : "—";
+    const siteLink = formatVenueLinkCell(v, info);
+    const aiBadge = v.aiSuggested
+      ? `<span class="badge-ai" title="Suggested by AI">AI</span> `
+      : "";
+    const descHtml = v.description
+      ? `<span class="desc-clamp" title="${escapeHtml(v.description)}">${escapeHtml(v.description.slice(0, 120))}${v.description.length > 120 ? "…" : ""}</span>`
+      : `<span style="color:var(--color-text-muted)">—</span>`;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td class="title-cell">${aiBadge}${clampHtml(v.title, 100)}</td>
+      <td>${escapeHtml(v.acronym || "—")}</td>
+      <td>${escapeHtml(v.type)}</td>
+      <td>
+        <span class="badge ${getBadgeClass(v.ranking)}">${escapeHtml(v.ranking)}</span>
+        <span class="system-label">${escapeHtml(v.system)}</span>
+      </td>
+      <td class="desc-cell">${descHtml}</td>
+      <td>${escapeHtml(String(nextDate))}</td>
+      <td>${escapeHtml(location)}</td>
+      <td>${siteLink}</td>
+    `;
+    tbody.appendChild(tr);
   }
 
   function renderVenuesTable() {
@@ -1160,34 +1440,18 @@
       venuesBody.appendChild(tr);
       return;
     }
-    venueResults.forEach((v, i) => {
-      const info = getConferenceDeadlineRow(v);
-      const nextDate   = info ? info.date     : "—";
-      const location   = info ? (info.location || "—") : "—";
-      const siteLink   = formatVenueLinkCell(v, info);
-      const aiBadge = v.aiSuggested
-        ? `<span class="badge-ai" title="Suggested by AI">AI</span> `
-        : "";
-      const descHtml = v.description
-        ? `<span class="desc-clamp" title="${escapeHtml(v.description)}">${escapeHtml(v.description.slice(0, 120))}${v.description.length > 120 ? "…" : ""}</span>`
-        : `<span style="color:var(--color-text-muted)">—</span>`;
+    venueResults.forEach((v, i) => appendVenueResultRow(venuesBody, v, i));
+  }
+
+  function renderLiteratureVenuesTable() {
+    literatureVenuesBody.innerHTML = "";
+    if (!literatureVenueRows.length) {
       const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${i + 1}</td>
-        <td class="title-cell">${aiBadge}${clampHtml(v.title, 100)}</td>
-        <td>${escapeHtml(v.acronym || "—")}</td>
-        <td>${escapeHtml(v.type)}</td>
-        <td>
-          <span class="badge ${getBadgeClass(v.ranking)}">${escapeHtml(v.ranking)}</span>
-          <span class="system-label">${escapeHtml(v.system)}</span>
-        </td>
-        <td class="desc-cell">${descHtml}</td>
-        <td>${escapeHtml(String(nextDate))}</td>
-        <td>${escapeHtml(location)}</td>
-        <td>${siteLink}</td>
-      `;
-      venuesBody.appendChild(tr);
-    });
+      tr.innerHTML = `<td colspan="9" style="text-align:center;color:var(--color-text-muted);padding:1.5rem">No distinct host venues in this result.</td>`;
+      literatureVenuesBody.appendChild(tr);
+      return;
+    }
+    literatureVenueRows.forEach((v, i) => appendVenueResultRow(literatureVenuesBody, v, i));
   }
 
   function renderDeadlinesTable() {
@@ -1323,10 +1587,10 @@
     venuesSection.hidden = true;
     deadlinesSection.hidden = true;
     literatureVenuesSection.hidden = true;
-    literatureVenuesList.innerHTML = "";
+    literatureVenuesBody.innerHTML = "";
     literatureVenuesNote.textContent = "";
     literatureVenuesCount.textContent = "";
-    literatureVenueNames = [];
+    literatureVenueRows = [];
     venueResults = [];
     deadlineResults = [];
     venuesBody.innerHTML = "";
