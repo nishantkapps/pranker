@@ -39,6 +39,11 @@ python scripts/enrich_conf_descriptions.py          # all conferences (~2 hrs)
 python scripts/build_core.py
 # If data/core_raw.csv is present it reads from it; otherwise falls back to web scraping.
 
+# Scopus search locally (API key from env — never commit keys). Mirrors “top-cited papers → distinct sources”.
+# export SCOPUS_API_KEY=...   # optional: SCOPUS_INSTTOKEN=...
+python scripts/scopus_literature_venues.py "your keywords here"
+python scripts/scopus_literature_venues.py --query-expr 'TITLE-ABS-KEY(robot) AND PUBYEAR > 2020' --journals-only -o venues.tsv
+
 # Local dev server
 python -m http.server 8000
 
