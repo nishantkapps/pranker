@@ -16,8 +16,11 @@
   /** Bundled aideadlin.es snapshot (scripts/build_conference_deadlines.py). Same-origin = reliable. */
   const CONFERENCE_DEADLINES_JSON = "data/conference_deadlines.json";
   /** Optional live fallback if the bundle is missing. */
-  const DEADLINES_YAML_URL =
-    "https://raw.githubusercontent.com/paperswithcode/ai-deadlines/gh-pages/_data/conferences.yml";
+  const OPENALEX_WORKS_API = "https://api.openalex.org/works";
+  /** Polite pool; same convention as CrossRef in this project. */
+  const OPENALEX_MAILTO = "pranker-tool@users.noreply.github.com";
+  const LITERATURE_TOP_N = 30;
+  const OPENALEX_TIMEOUT_MS = 25000;
 
   const TODAY = new Date();
   TODAY.setHours(0, 0, 0, 0);
@@ -72,6 +75,15 @@
   const deadlinesNote    = document.getElementById("deadlines-note");
   const deadlinesExportBtn = document.getElementById("deadlines-export-btn");
   const searchHint       = document.getElementById("search-hint");
+  const literatureVenuesBtn     = document.getElementById("literature-venues-btn");
+  const literatureVenuesSection = document.getElementById("literature-venues-section");
+  const literatureVenuesList    = document.getElementById("literature-venues-list");
+  const literatureVenuesNote    = document.getElementById("literature-venues-note");
+  const literatureVenuesCount   = document.getElementById("literature-venues-count");
+  const literatureVenuesCopyBtn = document.getElementById("literature-venues-copy-btn");
+
+  /** Names from last OpenAlex venue run (for copy). */
+  let literatureVenueNames = [];
 
   // AI settings DOM refs
   const aiSettingsBtn    = document.getElementById("ai-settings-btn");
@@ -380,6 +392,10 @@
   function setupEventListeners() {
     topicInput.addEventListener("input", updateFindBtnState);
     findBtn.addEventListener("click", handleFind);
+    literatureVenuesBtn.addEventListener("click", () =>
+      handleLiteratureVenues().catch(console.error)
+    );
+    literatureVenuesCopyBtn.addEventListener("click", handleLiteratureVenuesCopy);
     clearBtn.addEventListener("click", handleClear);
     venuesExportBtn.addEventListener("click", handleVenuesExport);
     deadlinesExportBtn.addEventListener("click", handleDeadlinesExport);
@@ -388,8 +404,9 @@
   }
 
   function updateFindBtnState() {
-    findBtn.disabled =
-      topicInput.value.trim().length === 0 || (!coreData && !scimagoData);
+    const hasTopic = topicInput.value.trim().length > 0;
+    findBtn.disabled = !hasTopic || (!coreData && !scimagoData);
+    literatureVenuesBtn.disabled = !hasTopic;
   }
 
   // ---- Search engine: stemming + prefix matching ----
@@ -757,10 +774,154 @@
     return results.slice(0, maxResults);
   }
 
-  // ---- Deadline matching ----
-
   function normalizeForMatch(s) {
     return (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  }
+
+  // ---- OpenAlex: venues from top-cited papers (Scopus not callable client-side) ----
+
+  function extractVenueNameFromOpenAlexWork(w) {
+    if (!w || typeof w !== "object") return "";
+    const fromLoc = (loc) => {
+      if (!loc || typeof loc !== "object") return "";
+      const src = loc.source;
+      if (src && typeof src === "object" && src.display_name) {
+        return String(src.display_name).trim();
+      }
+      return "";
+    };
+    let v = fromLoc(w.primary_location) || fromLoc(w.best_oa_location);
+    if (v) return v;
+    if (Array.isArray(w.locations)) {
+      for (const loc of w.locations) {
+        v = fromLoc(loc);
+        if (v) return v;
+      }
+    }
+    const hv = w.host_venue;
+    if (hv && typeof hv === "object") {
+      const n = hv.display_name || hv.name;
+      if (n) return String(n).trim();
+    }
+    return "";
+  }
+
+  async function fetchJsonWithTimeout(url, ms) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), ms);
+    try {
+      const resp = await fetch(url, { signal: ctrl.signal });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      return await resp.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * OpenAlex returns works already sorted by cited_by_count desc.
+   * We take the first LITERATURE_TOP_N works and collect host-venue names, deduped by normalizeForMatch,
+   * preserving order of first appearance (highest-cited papers first).
+   */
+  async function fetchLiteratureVenueNamesFromOpenAlex(query) {
+    const q = query.trim();
+    if (!q) return { works: [], venues: [] };
+
+    const params = new URLSearchParams({
+      search: q,
+      sort: "cited_by_count:desc",
+      per_page: String(LITERATURE_TOP_N),
+      mailto: OPENALEX_MAILTO,
+    });
+    const url = `${OPENALEX_WORKS_API}?${params.toString()}`;
+    const data = await fetchJsonWithTimeout(url, OPENALEX_TIMEOUT_MS);
+    const works = Array.isArray(data.results) ? data.results : [];
+    const seen = new Set();
+    const venues = [];
+    for (const w of works) {
+      const name = extractVenueNameFromOpenAlexWork(w);
+      if (!name || name.length < 2) continue;
+      const key = normalizeForMatch(name);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      venues.push({
+        name,
+        citedBy: typeof w.cited_by_count === "number" ? w.cited_by_count : 0,
+      });
+    }
+    return { works, venues };
+  }
+
+  async function handleLiteratureVenues() {
+    const q = topicInput.value.trim();
+    if (!q) {
+      alert("Enter keywords or a topic first.");
+      return;
+    }
+    literatureVenuesBtn.disabled = true;
+    literatureVenuesSection.hidden = false;
+    literatureVenuesList.innerHTML = "";
+    literatureVenuesCount.textContent = "";
+    literatureVenuesNote.textContent = "Searching OpenAlex…";
+
+    try {
+      const { works, venues } = await fetchLiteratureVenueNamesFromOpenAlex(q);
+      literatureVenueNames = venues.map((v) => v.name);
+
+      literatureVenuesNote.innerHTML =
+        `Elsevier <strong>Scopus</strong> cannot be queried from this browser-only app without an institutional API key. ` +
+        `We use the public <a href="https://openalex.org" target="_blank" rel="noopener">OpenAlex</a> API instead: ` +
+        `the top <strong>${LITERATURE_TOP_N}</strong> works matching your words, sorted by citation count, ` +
+        `then each work’s host venue (journal, conference proceedings, etc.) is listed once, in citation order. ` +
+        `Retrieved <strong>${works.length}</strong> works → <strong>${venues.length}</strong> distinct venues.`;
+
+      for (const row of venues) {
+        const li = document.createElement("li");
+        li.textContent = row.name;
+        literatureVenuesList.appendChild(li);
+      }
+      literatureVenuesCount.textContent = `(${venues.length} venues)`;
+
+      if (works.length && !venues.length) {
+        literatureVenuesNote.textContent +=
+          " No host venues were attached to those works in OpenAlex.";
+      }
+    } catch (e) {
+      literatureVenueNames = [];
+      literatureVenuesNote.textContent =
+        e.name === "AbortError"
+          ? "Request timed out. Try a shorter query or check your connection."
+          : `Could not reach OpenAlex: ${e.message || e}`;
+    } finally {
+      updateFindBtnState();
+    }
+  }
+
+  function handleLiteratureVenuesCopy() {
+    if (!literatureVenueNames.length) return;
+    const text = literatureVenueNames.join("\n");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => alert("Copied venue list to the clipboard."),
+        () => fallbackCopyVenueList(text)
+      );
+    } else {
+      fallbackCopyVenueList(text);
+    }
+  }
+
+  function fallbackCopyVenueList(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+      alert("Copied venue list to the clipboard.");
+    } catch {
+      prompt("Copy this text:", text);
+    }
+    document.body.removeChild(ta);
   }
 
   /**
@@ -1161,6 +1322,11 @@
     topicInput.value = "";
     venuesSection.hidden = true;
     deadlinesSection.hidden = true;
+    literatureVenuesSection.hidden = true;
+    literatureVenuesList.innerHTML = "";
+    literatureVenuesNote.textContent = "";
+    literatureVenuesCount.textContent = "";
+    literatureVenueNames = [];
     venueResults = [];
     deadlineResults = [];
     venuesBody.innerHTML = "";
