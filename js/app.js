@@ -186,17 +186,27 @@
       .map((x) => x.value);
   }
 
+  /** Strip BOM, bullets, and leading numbered / bracket list markers from pasted lines. */
+  function scrubPastedLine(s) {
+    let t = String(s || "").replace(/^\uFEFF/, "").trim();
+    t = t.replace(/^\s*[•\-*●◦]\s*/u, "");
+    t = t.replace(/^\s*\[\d+\]\s*/, "");
+    t = t.replace(/^\s*\d+[.)]\s+/, "");
+    t = t.replace(/^\s*\(\d+\)\s+/, "");
+    return t.trim();
+  }
+
   /** @returns {{ kind: 'doi'|'venue', value: string }[]} */
   function parseItemsFromText(text) {
     const items = [];
     const seenDoi = new Set();
     const seenVenue = new Set();
     const lines = String(text || "").split(/\r?\n/);
-    for (const line of lines) {
-      const chunks = line.split(/[,;|]+/).map((c) => c.trim()).filter(Boolean);
-      const parts = chunks.length ? chunks : [];
-      if (!parts.length) continue;
-      for (const part of parts) {
+    for (const rawLine of lines) {
+      const line = scrubPastedLine(rawLine);
+      if (!line) continue;
+      const chunks = line.split(/[,;|]+/).map((c) => scrubPastedLine(c)).filter(Boolean);
+      for (const part of chunks) {
         const doi = extractDOI(part);
         if (doi) {
           if (!seenDoi.has(doi)) {
@@ -292,6 +302,7 @@
     return items;
   }
 
+  async function getItemsFromActiveTab() {
     const activeTab = document.querySelector(".tab-btn.active").dataset.tab;
     if (activeTab === "text") {
       return parseItemsFromText(doiInput.value);
@@ -450,12 +461,85 @@
           return {
             ranking: entry.q === "-" ? "Not Ranked" : entry.q,
             system: "SCImago",
+            matchedTitle: entry.t,
           };
+        }
+      }
+      const fuzzy = lookupScimagoTitleFuzzy(sourceName);
+      if (fuzzy) return fuzzy;
+      const kw = lookupScimagoKeywordFallback(sourceName);
+      if (kw) return kw;
+    }
+
+    return { ranking: "Not Ranked", system: "SCImago" };
+  }
+
+  /**
+   * When the pasted name is a prefix / shortened form of the official SCImago title
+   * (e.g. missing “Engineering”), find the shortest catalogue title that contains it.
+   */
+  function lookupScimagoTitleFuzzy(sourceName) {
+    if (!scimagoData || !scimagoData.by_issn || !sourceName) return null;
+    const q = normalizeTitle(sourceName);
+    if (q.length < 8) return null;
+
+    let best = null;
+    let bestExtra = Infinity;
+
+    for (const entry of Object.values(scimagoData.by_issn)) {
+      const t = normalizeTitle(entry.t || "");
+      if (t.length < q.length) continue;
+
+      if (t.includes(q)) {
+        const extra = t.length - q.length;
+        if (extra < bestExtra) {
+          bestExtra = extra;
+          best = entry;
+        }
+      } else if (q.includes(t) && t.length >= 12) {
+        const extra = q.length - t.length;
+        if (extra < bestExtra) {
+          bestExtra = extra;
+          best = entry;
         }
       }
     }
 
-    return { ranking: "Not Ranked", system: "SCImago" };
+    if (!best) return null;
+    return {
+      ranking: best.q === "-" ? "Not Ranked" : best.q,
+      system: "SCImago",
+      matchedTitle: best.t,
+    };
+  }
+
+  /**
+   * Last resort: every “significant” word from the paste appears inside the catalogue title.
+   * Catches hyphenation / spacing mismatches e.g. “Neuro Robotics” vs “Neurorobotics”.
+   */
+  function lookupScimagoKeywordFallback(sourceName) {
+    if (!scimagoData || !scimagoData.by_issn || !sourceName) return null;
+    const q = normalizeTitle(sourceName);
+    const words = q.split(/\s+/).filter((w) => w.length >= 4);
+    if (words.length < 2) return null;
+
+    let best = null;
+    let bestExtra = Infinity;
+    for (const entry of Object.values(scimagoData.by_issn)) {
+      const t = normalizeTitle(entry.t || "");
+      if (t.length < q.length || !words.every((w) => t.includes(w))) continue;
+      const extra = t.length - q.length;
+      if (extra < bestExtra) {
+        bestExtra = extra;
+        best = entry;
+      }
+    }
+    if (!best) return null;
+    return {
+      ranking: best.q === "-" ? "Not Ranked" : best.q,
+      system: "SCImago",
+      matchedTitle: best.t,
+    };
   }
 
   function lookupConferenceRanking(sourceName) {
